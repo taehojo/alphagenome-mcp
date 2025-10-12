@@ -12,11 +12,7 @@ import {
 } from '@modelcontextprotocol/sdk/types.js';
 
 import { AlphaGenomeClient } from './alphagenome-client.js';
-import {
-  ApiKeyError,
-  RateLimitError,
-  ValidationError,
-} from './types.js';
+import { ApiKeyError, RateLimitError, ValidationError } from './types.js';
 import { ALL_TOOLS } from './tools.js';
 import {
   validateInput,
@@ -24,16 +20,8 @@ import {
   regionAnalysisSchema,
   batchScoreSchema,
 } from './utils/validation.js';
-import {
-  formatVariantResult,
-  formatRegionResult,
-  formatBatchResult,
-} from './utils/formatting.js';
-import type {
-  VariantPredictionParams,
-  RegionAnalysisParams,
-  BatchScoreParams,
-} from './types.js';
+import { formatVariantResult, formatRegionResult, formatBatchResult } from './utils/formatting.js';
+import type { VariantPredictionParams, RegionAnalysisParams, BatchScoreParams } from './types.js';
 
 /**
  * AlphaGenome MCP Server
@@ -105,10 +93,7 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
     switch (name) {
       case 'predict_variant_effect': {
         // Validate input
-        const params = validateInput(
-          variantPredictionSchema,
-          args
-        ) as VariantPredictionParams;
+        const params = validateInput(variantPredictionSchema, args) as VariantPredictionParams;
 
         // Call AlphaGenome API
         const result = await getClient().predictVariant(params);
@@ -168,10 +153,7 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
     if (error instanceof Error) {
       // Validation errors
       if (error.message.includes('Validation error')) {
-        throw new McpError(
-          ErrorCode.InvalidParams,
-          `Input validation failed:\n${error.message}`
-        );
+        throw new McpError(ErrorCode.InvalidParams, `Input validation failed:\n${error.message}`);
       }
 
       // API errors
@@ -188,10 +170,7 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
       }
 
       // Generic error
-      throw new McpError(
-        ErrorCode.InternalError,
-        `An unexpected error occurred: ${error.message}`
-      );
+      throw new McpError(ErrorCode.InternalError, `An unexpected error occurred: ${error.message}`);
     }
 
     // Unknown error type

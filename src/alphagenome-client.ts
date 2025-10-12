@@ -17,13 +17,7 @@ import {
 } from './types.js';
 
 // Re-export error classes for convenience
-export {
-  ApiKeyError,
-  RateLimitError,
-  ValidationError,
-  NetworkError,
-  ApiError,
-} from './types.js';
+export { ApiKeyError, RateLimitError, ValidationError, NetworkError, ApiError } from './types.js';
 
 /**
  * Configuration for AlphaGenome API client
@@ -60,8 +54,7 @@ export class AlphaGenomeClient {
 
     this.config = {
       apiKey: key || 'mock',
-      baseURL:
-        process.env.ALPHAGENOME_BASE_URL || 'https://api.alphagenome.deepmind.com/v1',
+      baseURL: process.env.ALPHAGENOME_BASE_URL || 'https://api.alphagenome.deepmind.com/v1',
       timeout: 30000,
       retryAttempts: 3,
     };
@@ -94,8 +87,7 @@ export class AlphaGenomeClient {
       retryDelay: axiosRetry.exponentialDelay,
       retryCondition: (error) => {
         return (
-          axiosRetry.isNetworkOrIdempotentRequestError(error) ||
-          error.response?.status === 429
+          axiosRetry.isNetworkOrIdempotentRequestError(error) || error.response?.status === 429
         );
       },
     });
@@ -161,8 +153,7 @@ export class AlphaGenomeClient {
   private mockPredictVariant(params: VariantPredictionParams): VariantResult {
     // Simulate varying impact levels based on position
     const impact_scores = [0.92, 0.78, 0.65, 0.43, 0.21];
-    const random_score =
-      impact_scores[Math.floor(Math.random() * impact_scores.length)];
+    const random_score = impact_scores[Math.floor(Math.random() * impact_scores.length)];
 
     // Determine impact level based on score
     let impact_level: 'low' | 'moderate' | 'high' | 'critical';
@@ -338,9 +329,7 @@ export class AlphaGenomeClient {
       case 500:
       case 502:
       case 503:
-        return new ApiError(
-          'AlphaGenome API is temporarily unavailable. Please try again later.'
-        );
+        return new ApiError('AlphaGenome API is temporarily unavailable. Please try again later.');
       default:
         return new ApiError(
           `AlphaGenome API error (${status}): ${data.message || 'Unknown error'}`

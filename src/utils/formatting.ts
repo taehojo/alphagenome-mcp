@@ -34,8 +34,8 @@ export function formatVariantResult(result: VariantResult): string {
       Math.abs(parseFloat(change)) > 50
         ? '🔴 High'
         : Math.abs(parseFloat(change)) > 20
-        ? '🟡 Moderate'
-        : '🟢 Low';
+          ? '🟡 Moderate'
+          : '🟢 Low';
     output += `| RNA Expression | ${rna.reference_score.toFixed(
       2
     )} | ${rna.alternate_score.toFixed(2)} | ${change}% ${arrow} | ${level} |\n`;
@@ -94,9 +94,7 @@ export function formatVariantResult(result: VariantResult): string {
   output += `---\n\n`;
   output += `## 🎯 Clinical Interpretation\n\n`;
   output += `### Impact Classification\n`;
-  output += `**${
-    result.interpretation.clinical_significance?.toUpperCase() || 'UNCERTAIN'
-  }** `;
+  output += `**${result.interpretation.clinical_significance?.toUpperCase() || 'UNCERTAIN'}** `;
   output += `(${result.interpretation.impact_level} confidence)\n\n`;
 
   if (result.interpretation.recommendations.length > 0) {
@@ -232,8 +230,8 @@ export function formatBatchResult(result: BatchResult): string {
       v.impact_level === 'high'
         ? '🔴 High'
         : v.impact_level === 'moderate'
-        ? '🟡 Moderate'
-        : '🟢 Low';
+          ? '🟡 Moderate'
+          : '🟢 Low';
     const varId = v.variant_id || '-';
     const keyEffect = v.key_effect || 'Regulatory element';
     output += `| ${v.rank} | ${varId} | ${v.variant} | ${v.score.toFixed(
@@ -250,9 +248,7 @@ export function formatBatchResult(result: BatchResult): string {
   for (const [level, count] of Object.entries(result.distribution)) {
     const pct = ((count / result.total_analyzed) * 100).toFixed(1);
     const emoji = level === 'high' ? '🔴' : level === 'moderate' ? '🟡' : '🟢';
-    output += `${emoji} ${level.padEnd(13)} | ${String(count).padStart(5)} | ${pct.padStart(
-      5
-    )}%\n`;
+    output += `${emoji} ${level.padEnd(13)} | ${String(count).padStart(5)} | ${pct.padStart(5)}%\n`;
   }
   output += `----------------|-------|------------\n`;
   output += `Total           | ${String(result.total_analyzed).padStart(5)} | 100.0%\n`;

@@ -64,8 +64,7 @@ Example: "Analyze chr17:41234567A>T with AlphaGenome"`,
       },
       tissue_type: {
         type: 'string',
-        description:
-          'Optional: tissue context (UBERON term, e.g., "UBERON:0001157" for brain)',
+        description: 'Optional: tissue context (UBERON term, e.g., "UBERON:0001157" for brain)',
       },
     },
     required: ['chromosome', 'position', 'ref', 'alt'],
@@ -205,8 +204,4 @@ Example: "Score these 50 variants and show me the top 10 by regulatory impact"`,
 /**
  * All available tools
  */
-export const ALL_TOOLS: Tool[] = [
-  PREDICT_VARIANT_TOOL,
-  ANALYZE_REGION_TOOL,
-  BATCH_SCORE_TOOL,
-];
+export const ALL_TOOLS: Tool[] = [PREDICT_VARIANT_TOOL, ANALYZE_REGION_TOOL, BATCH_SCORE_TOOL];

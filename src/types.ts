@@ -98,12 +98,7 @@ export interface RegionAnalysisParams {
   resolution?: 'base' | 'window';
 }
 
-export type AnalysisType =
-  | 'promoter'
-  | 'enhancer'
-  | 'silencer'
-  | 'tf_binding'
-  | 'chromatin_state';
+export type AnalysisType = 'promoter' | 'enhancer' | 'silencer' | 'tf_binding' | 'chromatin_state';
 
 export interface RegionResult {
   region: string;
