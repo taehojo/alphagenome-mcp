@@ -29,14 +29,28 @@ import type { VariantPredictionParams, RegionAnalysisParams, BatchScoreParams } 
  * Integrates Google DeepMind's AlphaGenome with Claude Desktop
  * for AI-powered genomic variant analysis.
  *
- * ⚠️ MOCK MODE: Currently uses simulated data for demonstration.
+ * Uses AlphaGenome Python SDK via subprocess bridge for real-time predictions.
  */
+
+// Parse command-line arguments for API key
+function parseApiKey(): string | undefined {
+  const args = process.argv.slice(2);
+  const apiKeyIndex = args.indexOf('--api-key');
+
+  if (apiKeyIndex !== -1 && apiKeyIndex + 1 < args.length) {
+    return args[apiKeyIndex + 1];
+  }
+
+  return undefined;
+}
+
+const CLI_API_KEY = parseApiKey();
 
 // Create MCP server
 const server = new Server(
   {
     name: 'alphagenome-mcp',
-    version: '0.1.0',
+    version: '0.1.2',
   },
   {
     capabilities: {
@@ -54,16 +68,19 @@ let client: AlphaGenomeClient | null = null;
 function getClient(): AlphaGenomeClient {
   if (!client) {
     try {
-      client = new AlphaGenomeClient();
+      // Use CLI API key if provided, otherwise fall back to env var
+      client = new AlphaGenomeClient(CLI_API_KEY);
     } catch (error) {
       if (error instanceof ApiKeyError) {
         console.error('\n❌ AlphaGenome API Key Error:\n');
         console.error(error.message);
         console.error('\nTo fix this:');
         console.error('1. Get an API key from https://alphagenome.deepmind.com');
-        console.error('2. Set it in your environment or Claude config:');
+        console.error('2. Provide it via command-line:');
+        console.error('   --api-key YOUR_API_KEY');
+        console.error('3. Or set it in your environment or Claude config:');
         console.error('   export ALPHAGENOME_API_KEY=your-key-here');
-        console.error('3. Or use mock mode for testing: ALPHAGENOME_API_KEY=mock\n');
+        console.error('4. Or use mock mode for testing: ALPHAGENOME_API_KEY=mock\n');
         process.exit(1);
       }
       throw error;
