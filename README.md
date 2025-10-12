@@ -2,183 +2,66 @@
 
 [![npm version](https://badge.fury.io/js/%40jolab%2Falphagenome-mcp.svg)](https://www.npmjs.com/package/@jolab/alphagenome-mcp)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
-[![TypeScript](https://img.shields.io/badge/TypeScript-5.3-blue.svg)](https://www.typescriptlang.org/)
 
-## Abstract
+An MCP server that provides natural language access to Google DeepMind's AlphaGenome for regulatory genomics analysis and variant effect prediction.
 
-This Model Context Protocol (MCP) server provides programmatic access to Google DeepMind's AlphaGenome AI system for regulatory genomics research. By integrating AlphaGenome's multi-modal deep learning predictions with Claude Desktop, we enable natural language-based analysis of genetic variants and regulatory elements. The server facilitates rapid hypothesis generation, variant prioritization, and mechanistic interpretation of regulatory mutations implicated in complex diseases.
+## Features
 
-## Background
+- **Variant Effect Prediction**: Analyze regulatory impacts of genetic variants across 11 molecular modalities (RNA-seq, ChIP-seq, ATAC-seq, splicing, etc.)
+- **Regulatory Element Discovery**: Identify promoters, enhancers, and transcription factor binding sites in genomic regions
+- **Batch Variant Scoring**: Prioritize multiple variants by regulatory impact for GWAS and sequencing studies
+- **Natural Language Interface**: Query variants using rsIDs or genomic coordinates without coding
+- **Multi-Modal Analysis**: Unified predictions for gene expression, chromatin accessibility, TF binding, and 3D chromatin structure
 
-### AlphaGenome
+## Tools
 
-AlphaGenome (Avsec et al., 2025) represents a unified deep learning approach to regulatory variant effect prediction, trained on extensive public datasets including ENCODE, GTEx, 4D Nucleome, and FANTOM5. The model predicts regulatory impacts across 11 molecular modalities with single base-pair resolution:
+### predict_variant_effect
 
-- **Gene Expression**: RNA-seq (667 cell types), CAGE (546), PRO-cap (12)
-- **Splicing**: Splice sites, junctions, and usage (734 each)
-- **Chromatin**: DNase-seq (305), ATAC-seq (167), Histone ChIP-seq (1116)
-- **Protein-DNA Interactions**: TF ChIP-seq (1617)
-- **3D Chromatin**: Contact maps (28)
+Predicts the regulatory impact of a single genetic variant.
 
-### Model Context Protocol Integration
+**Inputs:**
+- `chromosome` (string): Chromosome name (chr1-chr22, chrX, chrY)
+- `position` (number): Genomic position (1-based)
+- `ref` (string): Reference allele (A/T/G/C)
+- `alt` (string): Alternate allele (A/T/G/C)
+- `tissue_type` (string, optional): Tissue context (UBERON term, e.g., "UBERON:0000955" for brain)
+- `output_types` (array, optional): Specific modalities to analyze
 
-Traditional AlphaGenome usage requires Python scripting, genomic coordinate manipulation, and manual result interpretation. This MCP server eliminates these barriers by providing:
-
-1. **Natural Language Interface**: Query variants using rsIDs or genomic notation
-2. **Automated Workflow**: Coordinate resolution, API calls, and result formatting
-3. **Contextual Analysis**: Claude's reasoning combined with AlphaGenome's predictions
-4. **Batch Processing**: High-throughput variant prioritization
-
----
-
-## Research Use Cases
-
-### 1. Post-GWAS Functional Annotation
-
-**Scenario**: GWAS identifies statistical associations but not causal variants or mechanisms.
-
-**MCP Workflow**:
+**Example:**
 ```
-"Analyze the top 50 AD-associated SNPs from Jansen et al. (2019)
-and prioritize by brain-specific regulatory impact"
+"Analyze the regulatory impact of chr19:44908684T>C in brain tissue"
 ```
 
-**Traditional Approach**: Write custom scripts, manage API calls, parse results
-**MCP Advantage**: Single natural language query, automated prioritization
+### analyze_region
 
-### 2. Clinical Variant Interpretation
+Identifies regulatory elements in a genomic region.
 
-**Scenario**: Patient genome sequencing reveals variants of uncertain significance (VUS).
+**Inputs:**
+- `chromosome` (string): Chromosome name
+- `start` (number): Start position (1-based)
+- `end` (number): End position
+- `analysis_types` (array, optional): Element types to find (promoter, enhancer, etc.)
+- `resolution` (string, optional): "base" (1bp) or "window" (128bp)
 
-**MCP Workflow**:
+**Example:**
 ```
-"Which variants in this VCF affect splicing in brain tissue?"
-```
-
-**Application**: Accelerate molecular diagnosis of neurogenetic disorders
-
-### 3. Regulatory Mechanism Discovery
-
-**Scenario**: Understand how disease-associated variants affect gene regulation.
-
-**MCP Workflow**:
-```
-"Compare the regulatory impacts of APOE ε2, ε3, and ε4 alleles"
+"Find enhancers in chr11:5225464-5227071"
 ```
 
-**Advantage**: Multi-modal analysis revealing TF binding, chromatin, and expression changes
+### batch_score_variants
 
-### 4. Synthetic Biology Design
+Scores and ranks multiple variants by regulatory impact.
 
-**Scenario**: Engineer cell-type-specific regulatory elements.
+**Inputs:**
+- `variants` (array): List of variants with chr, pos, ref, alt
+- `scoring_metric` (string): Metric for ranking (rna_seq, splice, regulatory_impact, combined)
+- `top_n` (number, optional): Number of top variants to return
+- `include_interpretation` (boolean, optional): Include clinical interpretation
 
-**MCP Workflow**:
+**Example:**
 ```
-"Find the strongest neuron-specific enhancers in the HTT locus"
+"Score these variants by splicing impact: chr7:117199563C>T, chr2:127892810G>A"
 ```
-
-**Application**: Design therapeutic constructs with precise expression control
-
-### 5. Evolutionary Genomics
-
-**Scenario**: Identify regulatory changes under selection.
-
-**MCP Workflow**:
-```
-"Compare human chr7:117199563C>T with orthologous mouse position"
-```
-
-**Advantage**: Cross-species regulatory conservation analysis
-
----
-
-## Case Studies: Alzheimer's Disease Risk Variants
-
-We analyzed three established AD risk variants using AlphaGenome MCP to demonstrate regulatory impact prediction across different functional classes.
-
-### Methods
-
-**Variants Analyzed**:
-- **APOE ε4** (rs429358): chr19:44908684T>C - Lipid metabolism
-- **TREM2 R47H** (rs75932628): chr6:41129252C>T - Microglial function
-- **BIN1** (rs744373): chr2:127892810G>A - Endocytosis
-
-**Analysis Parameters**:
-- Tissue context: Brain (UBERON:0000955)
-- Modalities: RNA-seq, splice sites, TF binding, chromatin accessibility
-- Tool: `predict_variant_effect` via AlphaGenome MCP v0.1.5
-
-**Command**:
-```
-mcp__alphagenome__predict_variant_effect(
-    chromosome=chrN,
-    position=pos,
-    ref=ref_allele,
-    alt=alt_allele,
-    tissue_type="UBERON:0000955"
-)
-```
-
-### Results
-
-#### APOE ε4 (rs429358)
-
-| Metric | Reference | Alternate | Change | Interpretation |
-|--------|-----------|-----------|--------|----------------|
-| RNA Expression | 0.04 | 0.04 | 0% | No direct expression change |
-| Splice Impact | 0.00 | 0.00 | 3% | Minimal splicing effect |
-| TF Binding | 119.98 | 119.97 | 2400% | Dramatic TF binding disruption |
-| **Classification** | - | - | - | **LIKELY_PATHOGENIC** |
-
-**Mechanistic Insight**: APOE ε4 risk appears mediated by transcription factor binding disruption rather than direct expression changes, consistent with enhancer-based regulatory mechanisms.
-
-#### TREM2 R47H (rs75932628)
-
-| Metric | Reference | Alternate | Change | Interpretation |
-|--------|-----------|-----------|--------|----------------|
-| RNA Expression | 0.01 | 0.01 | 0% | No expression change |
-| Splice Impact | 0.00 | 0.00 | 2% | Minimal splicing effect |
-| TF Binding | 118.25 | 118.25 | 800% | Substantial TF binding change |
-| **Classification** | - | - | - | **LIKELY_PATHOGENIC** |
-
-**Mechanistic Insight**: This microglial receptor variant shows regulatory impact through TF binding modulation, suggesting cell-type-specific regulatory consequences.
-
-#### BIN1 (rs744373)
-
-| Metric | Reference | Alternate | Change | Interpretation |
-|--------|-----------|-----------|--------|----------------|
-| RNA Expression | 0.03 | 0.03 | 0% | No expression change |
-| Splice Impact | 0.00 | 0.00 | 2% | Minimal splicing effect |
-| TF Binding | 102.13 | 102.13 | 1600% | Major TF binding disruption |
-| **Classification** | - | - | - | **LIKELY_PATHOGENIC** |
-
-**Mechanistic Insight**: The endocytosis pathway gene BIN1 shows strong regulatory effects via TF binding, potentially affecting clathrin-mediated endocytosis regulation.
-
-### Discussion
-
-**Common Pattern**: All three AD risk variants demonstrate:
-1. **Preserved RNA expression levels** (fold change ≈ 0)
-2. **Minimal splicing disruption** (< 5% change)
-3. **Substantial TF binding changes** (800-2400% increase)
-
-This pattern suggests that AD genetic risk operates primarily through **subtle regulatory modulation** rather than gross expression changes. Such effects would be missed by expression QTL studies but are detectable through AI-based regulatory prediction.
-
-**Clinical Implications**: These findings support a regulatory architecture model where:
-- Risk variants perturb TF binding landscapes
-- Effects are context-dependent (cell-type, developmental stage)
-- Cumulative regulatory burden contributes to disease susceptibility
-
-**Methodological Advantage**: Traditional functional validation would require:
-- ChIP-seq experiments for each variant (~$5,000-10,000 each)
-- Multiple cell types and conditions
-- Months of wet-lab work
-
-AlphaGenome MCP provides mechanistic hypotheses in minutes, enabling:
-- Rapid hypothesis generation
-- Prioritization for experimental validation
-- Integration with genetic and clinical data
-
----
 
 ## Installation
 
@@ -188,17 +71,21 @@ AlphaGenome MCP provides mechanistic hypotheses in minutes, enabling:
 - Python ≥3.8 with `alphagenome` and `numpy`
 - AlphaGenome API key ([request here](https://deepmind.google/discover/blog/alphagenome/))
 
-### Setup
+### Quick Start
 
 ```bash
 # Install Python dependencies
 pip install alphagenome numpy
 
-# Configure Claude Desktop
+# Add to Claude Desktop
 claude mcp add alphagenome -- npx -y @jolab/alphagenome-mcp@latest --api-key YOUR_API_KEY
 ```
 
-Alternatively, configure via `claude_desktop_config.json`:
+## Configuration
+
+### Usage with Claude Desktop
+
+Add to your `claude_desktop_config.json`:
 
 ```json
 {
@@ -206,7 +93,27 @@ Alternatively, configure via `claude_desktop_config.json`:
     "alphagenome": {
       "command": "npx",
       "args": ["-y", "@jolab/alphagenome-mcp@latest"],
-      "env": {"ALPHAGENOME_API_KEY": "your-api-key-here"}
+      "env": {
+        "ALPHAGENOME_API_KEY": "your-api-key-here"
+      }
+    }
+  }
+}
+```
+
+Or use command-line argument:
+
+```json
+{
+  "mcpServers": {
+    "alphagenome": {
+      "command": "npx",
+      "args": [
+        "-y",
+        "@jolab/alphagenome-mcp@latest",
+        "--api-key",
+        "your-api-key-here"
+      ]
     }
   }
 }
@@ -219,118 +126,56 @@ Test the installation:
 "Analyze chr19:44908684T>C with AlphaGenome"
 ```
 
-Expected output: Detailed regulatory impact report within 30-60 seconds.
+Expected: Detailed regulatory impact report within 30-60 seconds.
 
----
+## Usage Examples
 
-## Usage
+### Basic Analysis
 
-### Basic Queries
-
-**Single Variant Analysis**:
+**Single Variant:**
 ```
-"What is the regulatory impact of rs429358 in brain tissue?"
+"What is the regulatory impact of rs429358?"
 ```
 
-**Genomic Region Exploration**:
+**Specific Tissue:**
 ```
-"Identify all regulatory elements in chr11:5225464-5227071"
-```
-
-**Batch Variant Prioritization**:
-```
-"Rank these variants by splicing impact:
-chr7:117199563C>T, chr13:32910000G>A, chr19:1220000A>C"
+"Analyze chr6:41129252C>T in brain tissue"
 ```
 
-### Advanced Workflows
-
-**Cross-Tissue Comparison**:
+**Custom Modalities:**
 ```
-"Compare the effect of chr6:41129252C>T in brain vs. liver"
+"Show only RNA-seq and splicing effects for chr2:127892810G>A"
 ```
 
-**Mechanistic Interrogation**:
+### Advanced Queries
+
+**Region Exploration:**
+```
+"Find all regulatory elements in the APOE gene region"
+```
+
+**Variant Prioritization:**
+```
+"Rank these 10 variants by their impact on gene expression"
+```
+
+**Cross-Tissue Comparison:**
+```
+"Compare the effect of this variant in brain vs liver"
+```
+
+**Mechanistic Investigation:**
 ```
 "Which transcription factors are affected by rs744373?"
 ```
 
-**Integration with External Data**:
-```
-"Take the top 20 eQTLs from GTEx brain and predict their regulatory mechanisms"
-```
+## Use Cases
 
----
-
-## Technical Architecture
-
-### System Design
-
-```
-┌─────────────────┐
-│ Claude Desktop  │
-└────────┬────────┘
-         │ Natural Language
-         │ stdin/stdout (MCP)
-┌────────▼────────┐
-│   MCP Server    │
-│  (TypeScript)   │
-└────────┬────────┘
-         │ JSON-RPC
-         │ subprocess
-┌────────▼────────┐
-│ Python Bridge   │
-│ (alphagenome)   │
-└────────┬────────┘
-         │ HTTPS
-         │ gRPC
-┌────────▼────────┐
-│ AlphaGenome API │
-│  (DeepMind)     │
-└─────────────────┘
-```
-
-### Tools Provided
-
-| Tool | Function | Parameters |
-|------|----------|------------|
-| `predict_variant_effect` | Single variant analysis | chr, pos, ref, alt, tissue, modalities |
-| `analyze_region` | Regulatory element discovery | chr, start, end, types, resolution |
-| `batch_score_variants` | High-throughput scoring | variants[], metric, top_n |
-
-### Data Flow
-
-1. **Input Parsing**: Claude interprets user intent and extracts genomic coordinates
-2. **Validation**: Zod schemas validate chromosome notation, positions, alleles
-3. **API Call**: Python bridge translates to AlphaGenome SDK calls
-4. **Prediction**: AlphaGenome model generates multi-modal predictions
-5. **Formatting**: Results rendered as markdown with clinical interpretation
-6. **Response**: Claude synthesizes findings and suggests follow-up analyses
-
----
-
-## Performance Characteristics
-
-### Latency
-
-- **First call**: 30-60 seconds (model initialization)
-- **Subsequent calls**: 5-15 seconds (prediction time)
-- **Batch mode**: ~2 seconds per variant (parallel processing)
-
-### Throughput
-
-- **Recommended**: < 1000 variants per session
-- **Rate limit**: Managed by AlphaGenome API quotas
-- **Optimization**: Use `batch_score_variants` for multiple variants
-
-### Accuracy
-
-AlphaGenome achieves state-of-the-art performance:
-- 22/24 sequence prediction tasks (leader)
-- 24/26 variant effect benchmarks (leader)
-- See [Avsec et al., 2025](https://www.biorxiv.org/content/10.1101/2025.06.27.600757v1) for validation metrics
-
----
+- **Post-GWAS Analysis**: Prioritize GWAS hits by functional impact
+- **Clinical Interpretation**: Assess pathogenicity of VUS (variants of uncertain significance)
+- **Drug Target Discovery**: Identify regulatory variants affecting target genes
+- **Synthetic Biology**: Design tissue-specific regulatory elements
+- **Evolutionary Genomics**: Analyze regulatory changes across species
 
 ## Development
 
@@ -342,75 +187,68 @@ cd alphagenome-mcp
 npm install
 pip install -r requirements.txt
 npm run build
-npm run test
 ```
 
 ### Project Structure
 
 ```
-alphagenome-mcp/
-├── src/
-│   ├── index.ts              # MCP server entry point
-│   ├── alphagenome-client.ts # API client with Python bridge
-│   ├── tools.ts              # Tool definitions (3 tools)
-│   ├── types.ts              # TypeScript interfaces
-│   └── utils/
-│       ├── validation.ts     # Zod schemas
-│       └── formatting.ts     # Markdown output
-├── scripts/
-│   └── alphagenome_bridge.py # Python subprocess bridge
-├── tests/                    # Test suite (TODO)
-└── examples/                 # Usage examples
+src/
+├── index.ts              # MCP server
+├── alphagenome-client.ts # API client
+├── tools.ts              # Tool definitions
+└── utils/                # Validation & formatting
+scripts/
+└── alphagenome_bridge.py # Python bridge
 ```
 
-### Contributing
+### Testing
 
-Contributions welcome:
-1. Fork repository
-2. Create feature branch
-3. Add tests for new functionality
-4. Submit pull request
+```bash
+npm run lint
+npm run typecheck
+npm run build
+```
 
----
+## Architecture
+
+```
+Claude Desktop → MCP Server (TypeScript) → Python Bridge → AlphaGenome API
+```
+
+The server uses a Python subprocess bridge to interface with AlphaGenome's Python-only SDK.
+
+## Performance
+
+- **First call**: 30-60 seconds (initialization)
+- **Subsequent calls**: 5-15 seconds
+- **Recommended**: <1000 variants per session
+- **Modalities**: 11 (RNA-seq, CAGE, PRO-cap, splice sites, DNase, ATAC, histone mods, TF binding, contact maps)
+- **Resolution**: Single base-pair for most modalities
 
 ## Limitations
 
-### AlphaGenome Constraints
-
-- **Distant regulatory elements**: Accuracy decreases beyond 100kb from TSS
-- **Cell-type specificity**: Predictions averaged across related cell types
-- **Complex variants**: InDels, structural variants not fully supported
-- **Species**: Human and mouse only
-
-### MCP-Specific Limitations
-
-- **API dependency**: Requires active internet and AlphaGenome API access
-- **No visualization**: Text-based output; use notebooks for plotting
-- **Batch size**: Optimal for < 100 variants per query
-
-### Ethical Considerations
-
-- **Research use only**: Not validated for clinical diagnostics
-- **Interpretation caution**: AI predictions require experimental validation
-- **Privacy**: Do not upload identifiable patient data
-
----
+- Requires active internet and API access
+- InDels and structural variants not fully supported
+- Accuracy decreases for regulatory elements >100kb from TSS
+- Human and mouse genomes only
+- Research use only (not validated for clinical diagnostics)
 
 ## Citation
-
-If this tool contributes to your research, please cite:
 
 ```bibtex
 @software{jo2025alphagenome_mcp,
   author = {Jo, Taeho},
-  title = {AlphaGenome MCP Server: Natural Language Interface for Regulatory Genomics},
+  title = {AlphaGenome MCP Server},
   year = {2025},
   url = {https://github.com/taehojo/alphagenome-mcp},
   version = {0.1.5}
 }
+```
 
+AlphaGenome:
+```bibtex
 @article{avsec2025alphagenome,
-  title = {AlphaGenome: Unified prediction of variant effects across the genome},
+  title = {AlphaGenome: Unified prediction of variant effects},
   author = {Avsec, Žiga and Latysheva, Natasha and Cheng, Jun and others},
   journal = {bioRxiv},
   year = {2025},
@@ -418,46 +256,14 @@ If this tool contributes to your research, please cite:
 }
 ```
 
----
-
-## References
-
-1. Avsec, Ž. et al. (2025). AlphaGenome: Unified prediction of variant effects. *bioRxiv*. DOI: 10.1101/2025.06.27.600757
-2. Model Context Protocol. (2024). Anthropic. https://modelcontextprotocol.io/
-3. Jansen, I.E. et al. (2019). Genome-wide meta-analysis identifies new loci and functional pathways influencing Alzheimer's disease risk. *Nat Genet* 51, 404-413.
-
----
-
-## Acknowledgments
-
-- **Google DeepMind** for AlphaGenome API access
-- **Anthropic** for Model Context Protocol framework
-- **Community contributors** for testing and feedback
-
----
-
 ## License
 
-MIT License - see [LICENSE](LICENSE) for details
+MIT License - Copyright (c) 2025 Taeho Jo
 
-Copyright (c) 2025 Taeho Jo
+## Links
 
----
-
-## Contact
-
-- **Author**: Taeho Jo, PhD
-- **Email**: taehjo@gmail.com
-- **Issues**: [GitHub Issues](https://github.com/taehojo/alphagenome-mcp/issues)
-- **Repository**: https://github.com/taehojo/alphagenome-mcp
-
----
-
-## Version History
-
-See [CHANGELOG.md](CHANGELOG.md) for detailed version history.
-
-**Current Release**: v0.1.5 (2025-10-12)
-- Verified end-to-end functionality
-- Tested with AD risk variants
-- Production-ready for research use
+- **npm**: https://www.npmjs.com/package/@jolab/alphagenome-mcp
+- **GitHub**: https://github.com/taehojo/alphagenome-mcp
+- **Issues**: https://github.com/taehojo/alphagenome-mcp/issues
+- **AlphaGenome**: https://deepmind.google/discover/blog/alphagenome/
+- **Model Context Protocol**: https://modelcontextprotocol.io/
