@@ -4,9 +4,9 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project Overview
 
-AlphaGenome MCP (Model Context Protocol) Server - A specialized MCP server for genomic variant analysis.
+AlphaGenome MCP (Model Context Protocol) Server - A specialized MCP server for genomic variant analysis using Google DeepMind's AlphaGenome AI.
 
-⚠️ **MOCK MODE**: This is a proof-of-concept implementation with simulated data. The real AlphaGenome API from Google DeepMind is not yet publicly available.
+**Real API Integration**: Uses AlphaGenome Python SDK via a Python bridge for production-grade genomic analysis.
 
 ## Development Commands
 
@@ -35,8 +35,11 @@ npm run typecheck
 
 ### Running Locally
 ```bash
-# Run with mock data (default)
-ALPHAGENOME_API_KEY=mock node build/index.js
+# Run with your AlphaGenome API key
+ALPHAGENOME_API_KEY=your-key-here node build/index.js
+
+# Or provide via command-line argument
+node build/index.js --api-key your-key-here
 
 # The server communicates via stdio (MCP protocol)
 # Output to stderr is for logging, stdout is for MCP messages
@@ -52,8 +55,8 @@ ALPHAGENOME_API_KEY=mock node build/index.js
    - Error handling and formatting
 
 2. **src/alphagenome-client.ts** - API client
-   - Mock implementation for development
-   - Ready for real API integration
+   - Python subprocess bridge to AlphaGenome SDK
+   - Real-time API calls to Google DeepMind's service
    - Comprehensive error handling
 
 3. **src/tools.ts** - MCP tool definitions
@@ -71,17 +74,17 @@ ALPHAGENOME_API_KEY=mock node build/index.js
 ### Data Flow
 
 ```
-Claude Desktop → stdio → MCP Server → Validate Input → AlphaGenome Client → Format Output → Claude
+Claude Desktop → stdio → MCP Server → Validate Input → AlphaGenome Client → Python Bridge → AlphaGenome API → Format Output → Claude
 ```
 
-## Mock Data Policy
+## API Integration
 
-**CRITICAL**: This project currently uses mock data for demonstration.
+**Production-Ready**: Uses Google DeepMind's AlphaGenome Python SDK via subprocess bridge.
 
-- All mock implementations are clearly labeled
-- Console warnings indicate mock mode
-- Output includes "⚠️ MOCK DATA" disclaimers
-- Architecture is ready for real API integration
+- Real-time predictions from AlphaGenome AI
+- Python bridge handles API communication
+- Requires valid AlphaGenome API key
+- Supports all AlphaGenome modalities (RNA-seq, CAGE, splicing, ChIP-seq, etc.)
 
 ## Adding New Tools
 
@@ -115,7 +118,7 @@ Add to `claude_desktop_config.json`:
       "command": "node",
       "args": ["/absolute/path/to/alphagenome-mcp/build/index.js"],
       "env": {
-        "ALPHAGENOME_API_KEY": "mock"
+        "ALPHAGENOME_API_KEY": "your-api-key-here"
       }
     }
   }
@@ -132,22 +135,20 @@ GitHub Actions workflows:
 - **test.yml**: Runs on push/PR (lint, typecheck, build, test)
 - **publish.yml**: Auto-publishes to npm on release
 
-## Future: Real API Integration
+## Python Dependencies
 
-When AlphaGenome API becomes available:
+This server requires Python 3 and the AlphaGenome SDK:
 
-1. Update `ALPHAGENOME_BASE_URL` environment variable
-2. Replace mock methods in `AlphaGenomeClient` with real API calls
-3. Update response type mappings if API differs
-4. Remove mock warnings from output formatters
-5. Update documentation
+```bash
+pip install alphagenome numpy
+```
 
-The architecture is designed for this transition to be straightforward.
+The Python bridge script (`scripts/alphagenome_bridge.py`) handles all communication with the AlphaGenome API.
 
 ## Important Notes
 
 - Never commit API keys
-- Keep mock mode clearly labeled
+- Requires valid AlphaGenome API key for production use
 - Maintain TypeScript strict mode
 - Follow existing error handling patterns
 - Update CHANGELOG.md for all changes

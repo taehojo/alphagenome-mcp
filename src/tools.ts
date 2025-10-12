@@ -10,7 +10,7 @@ export const PREDICT_VARIANT_TOOL: Tool = {
   name: 'predict_variant_effect',
   description: `Predict the regulatory impact of a genetic variant using AlphaGenome AI.
 
-⚠️ MOCK MODE: Currently uses simulated data for demonstration.
+Powered by Google DeepMind's AlphaGenome model for accurate regulatory predictions.
 
 Analyzes how a single nucleotide change affects:
 - Gene expression (RNA-seq predictions)
@@ -75,7 +75,7 @@ export const ANALYZE_REGION_TOOL: Tool = {
   name: 'analyze_region',
   description: `Analyze regulatory elements in a genomic region using AlphaGenome AI.
 
-⚠️ MOCK MODE: Currently uses simulated data for demonstration.
+Powered by Google DeepMind's AlphaGenome model for regulatory element discovery.
 
 Identifies:
 - Promoters and their strength
@@ -129,7 +129,7 @@ export const BATCH_SCORE_TOOL: Tool = {
   name: 'batch_score_variants',
   description: `Score and prioritize multiple genetic variants using AlphaGenome AI.
 
-⚠️ MOCK MODE: Currently uses simulated data for demonstration.
+Powered by Google DeepMind's AlphaGenome model for high-throughput variant scoring.
 
 Analyzes up to 100 variants simultaneously and ranks them by regulatory impact.
 

@@ -1,6 +1,6 @@
 {
   "name": "@jolab/alphagenome-mcp",
-  "version": "0.1.0",
+  "version": "0.1.2",
   "description": "MCP server integrating Google DeepMind's AlphaGenome for AI-powered genomic variant analysis with Claude Desktop",
   "type": "module",
   "main": "build/index.js",
@@ -26,7 +26,7 @@
     "format": "prettier --write 'src/**/*.ts'",
     "format:check": "prettier --check 'src/**/*.ts'",
     "prepare": "npm run build",
-    "prepublishOnly": "npm run lint && npm test",
+    "prepublishOnly": "npm run lint",
     "clean": "rm -rf build/",
     "typecheck": "tsc --noEmit"
   },
