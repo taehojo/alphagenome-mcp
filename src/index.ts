@@ -50,7 +50,7 @@ const CLI_API_KEY = parseApiKey();
 const server = new Server(
   {
     name: 'alphagenome-mcp',
-    version: '0.1.4',
+    version: '0.1.5',
   },
   {
     capabilities: {
