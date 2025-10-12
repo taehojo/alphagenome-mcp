@@ -7,6 +7,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.1.5] - 2025-10-12
+
+### Verified
+- Confirmed full end-to-end functionality with real AlphaGenome API
+- Tested with rs113700824 variant analysis (APOE region)
+- Validated Python bridge integration and MCP tool calls
+- All three tools (predict_variant_effect, analyze_region, batch_score_variants) operational
+
+### Documentation
+- Verified working installation command: `npx -y @jolab/alphagenome-mcp@latest --api-key YOUR_KEY`
+- Confirmed compatibility with Claude Desktop MCP integration
+- Python bridge successfully interfaces with AlphaGenome SDK
+
 ## [0.1.4] - 2025-10-12
 
 ### Fixed
