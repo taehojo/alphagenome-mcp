@@ -7,6 +7,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.1.4] - 2025-10-12
+
+### Fixed
+- Minimized stderr logging to match working MCP servers (sequential-thinking pattern)
+- Reduced startup message to single line: "AlphaGenome MCP Server running on stdio"
+- Removed all informational logging during initialization
+- Removed client initialization logging that could interfere with stdio transport
+
+### Changed
+- Simplified error messages to avoid redundant stderr output
+- Followed MCP best practices from @modelcontextprotocol/server-sequential-thinking
+
 ## [0.1.3] - 2025-10-12
 
 ### Changed

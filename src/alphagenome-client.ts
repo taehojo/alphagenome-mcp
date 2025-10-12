@@ -60,9 +60,6 @@ export class AlphaGenomeClient {
     const __filename = fileURLToPath(import.meta.url);
     const __dirname = path.dirname(__filename);
     this.pythonBridgePath = path.join(__dirname, '..', 'scripts', 'alphagenome_bridge.py');
-
-    // Minimal logging during initialization to avoid stdio interference
-    console.error('[AlphaGenome] Client initialized');
   }
 
   /**
@@ -101,10 +98,9 @@ export class AlphaGenomeClient {
       // Handle process completion
       pythonProcess.on('close', (code) => {
         if (code !== 0) {
-          console.error('Python bridge stderr:', stderrData);
           reject(
             new ApiError(
-              `Python bridge exited with code ${code}`,
+              `Python bridge exited with code ${code}: ${stderrData}`,
               500,
               { stderr: stderrData }
             )

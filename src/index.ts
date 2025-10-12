@@ -50,7 +50,7 @@ const CLI_API_KEY = parseApiKey();
 const server = new Server(
   {
     name: 'alphagenome-mcp',
-    version: '0.1.3',
+    version: '0.1.4',
   },
   {
     capabilities: {
@@ -207,17 +207,9 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
  * Main server startup function
  */
 async function main() {
-  console.error('🧬 AlphaGenome MCP Server v0.1.3');
-  console.error('📡 Starting server on stdio transport...\n');
-
   const transport = new StdioServerTransport();
   await server.connect(transport);
-
-  console.error('✅ Server ready and listening');
-  console.error('💡 Note: First API call may take 30-60s to initialize');
-  console.error('🔗 GitHub: https://github.com/taehojo/alphagenome-mcp');
-  console.error('📦 npm: @jolab/alphagenome-mcp');
-  console.error('🐍 Python requirements: python3, pip install alphagenome\n');
+  console.error('AlphaGenome MCP Server running on stdio');
 }
 
 // Start the server
