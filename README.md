@@ -1,56 +1,89 @@
-# 🧬 AlphaGenome MCP Server
+# AlphaGenome MCP Server
 
 [![npm version](https://badge.fury.io/js/%40jolab%2Falphagenome-mcp.svg)](https://www.npmjs.com/package/@jolab/alphagenome-mcp)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 [![TypeScript](https://img.shields.io/badge/TypeScript-5.3-blue.svg)](https://www.typescriptlang.org/)
 
-**MCP server for AI-powered genomic variant analysis using Google DeepMind's AlphaGenome**
+A Model Context Protocol (MCP) server providing programmatic access to Google DeepMind's AlphaGenome for computational genomics research and variant analysis.
 
-> ✅ **Real AlphaGenome API Integration**: This server uses Google DeepMind's AlphaGenome Python SDK to provide AI-powered genomic variant analysis through Claude Desktop.
+## Overview
 
----
+This server implements the Model Context Protocol to integrate AlphaGenome's deep learning-based genomic prediction capabilities with Claude Desktop and other MCP-compatible clients. AlphaGenome leverages transformer architectures trained on large-scale genomic datasets to predict regulatory effects of genetic variants across multiple modalities.
 
-## ✨ Features
+### Scientific Capabilities
 
-- 🧬 **Variant Impact Prediction** - Analyze how genetic variants affect gene regulation
-- 🔍 **Regulatory Element Discovery** - Identify promoters, enhancers, and transcription factor binding sites
-- 📊 **Batch Variant Scoring** - Prioritize hundreds of variants at scale
-- 💬 **Natural Language Interface** - No coding required, just ask Claude in plain English
-- ⚡ **Lightning Fast** - Get results in seconds using AlphaGenome AI
-- 🔬 **Research Grade** - Powered by Google DeepMind's state-of-the-art genomics AI
+**Variant Effect Prediction**
+- Quantitative prediction of regulatory impact on gene expression (RNA-seq)
+- Splice site disruption analysis and alternative splicing predictions
+- Transcription factor binding affinity changes (ChIP-seq)
+- Chromatin accessibility alterations (ATAC-seq, DNase-seq)
+- Histone modification pattern changes (ChIP-seq for histone marks)
 
----
+**Regulatory Element Discovery**
+- *De novo* identification of promoter regions
+- Enhancer-promoter interaction prediction
+- Transcription factor binding site (TFBS) annotation
+- Chromatin state segmentation analysis
 
-## 🚀 Quick Start
+**High-Throughput Variant Prioritization**
+- Batch processing of variants from GWAS or sequencing studies
+- Regulatory impact scoring and ranking
+- Integration of multiple functional predictions
 
-### Prerequisites
+## Technical Architecture
 
-1. **Node.js** 18+ - For the MCP server
-2. **Python 3** - For AlphaGenome API
-3. **Claude Desktop** - For the chat interface
-4. **AlphaGenome API Key** - Get from [Google DeepMind](https://deepmind.google)
+### System Components
 
-### Installation
+```
+Claude Desktop (or MCP client)
+    ↓ stdio
+MCP Server (TypeScript/Node.js)
+    ↓ subprocess
+Python Bridge
+    ↓ API calls
+AlphaGenome SDK (Python)
+    ↓ HTTPS
+Google DeepMind AlphaGenome API
+```
 
-#### Step 1: Install Python Dependencies
+The server uses a subprocess-based Python bridge to interface with the AlphaGenome Python SDK, as the official API is Python-only. All predictions are performed by Google DeepMind's hosted AlphaGenome model.
+
+### Implementation Details
+
+- **MCP Protocol**: Full implementation of Anthropic's Model Context Protocol specification
+- **Input Validation**: Zod-based schema validation for genomic coordinates and parameters
+- **Error Handling**: Comprehensive error propagation from API through to client
+- **Output Formatting**: Structured Markdown formatting for variant reports
+
+## Installation
+
+### Requirements
+
+- Node.js ≥18.0.0
+- Python ≥3.8
+- AlphaGenome API key (obtain from Google DeepMind)
+
+### Python Dependencies
 
 ```bash
 pip install alphagenome numpy
 ```
 
-#### Step 2: Install MCP Server
+### MCP Server Installation
 
 ```bash
-# Via npx (recommended - no installation needed)
-npx @jolab/alphagenome-mcp
-
-# Or install globally
+# Global installation
 npm install -g @jolab/alphagenome-mcp
+
+# Or use via npx (no installation required)
+npx @jolab/alphagenome-mcp
 ```
 
-#### Step 3: Configure Claude Desktop
+### Configuration
 
-Add to your Claude Desktop config (`~/Library/Application Support/Claude/claude_desktop_config.json` on macOS):
+#### Claude Desktop
+
+Add to `claude_desktop_config.json`:
 
 ```json
 {
@@ -66,64 +99,74 @@ Add to your Claude Desktop config (`~/Library/Application Support/Claude/claude_
 }
 ```
 
-Or use the Claude MCP command:
+Alternatively, use the Claude CLI:
 
 ```bash
 claude mcp add alphagenome -- npx -y @jolab/alphagenome-mcp --api-key YOUR_API_KEY
 ```
 
-#### Step 4: Restart Claude Desktop
-
-Completely quit and restart Claude Desktop to load the new MCP server.
-
----
-
-## 💡 Usage Examples
-
-### 🧬 Basic Variant Analysis
-
-```
-"Use AlphaGenome to analyze the variant chr17:41234567A>T"
-```
-
-### 🔍 Find Regulatory Elements
-
-```
-"What regulatory elements are in the region chr11:5225464-5227071?"
-```
-
-### 📊 Batch Analysis
-
-```
-"Score these variants by regulatory impact:
-- chr7:117199563C>T
-- chr13:32910000G>A
-- chr19:1220000A>C
-Show me the top 3"
-```
-
----
-
-## 🛠️ For Developers
-
-### Local Development
+#### Standalone Usage
 
 ```bash
-# Clone repository
+ALPHAGENOME_API_KEY=your-key node build/index.js
+# Or with command-line argument
+node build/index.js --api-key your-key
+```
+
+## Usage
+
+### Variant Analysis Example
+
+```
+Analyze the regulatory impact of chr17:41234567A>T
+```
+
+This queries the AlphaGenome API to predict:
+- Gene expression changes (log2 fold change)
+- Splice site alterations
+- Transcription factor binding disruptions
+- Clinical significance assessment
+
+### Regulatory Region Analysis
+
+```
+Identify regulatory elements in chr11:5225464-5227071
+```
+
+Returns predicted locations and strengths of:
+- Promoters
+- Enhancers
+- Transcription factor binding sites
+- Chromatin states
+
+### Batch Variant Scoring
+
+```
+Score the following variants by regulatory impact:
+chr7:117199563C>T
+chr13:32910000G>A
+chr19:1220000A>C
+```
+
+Performs high-throughput analysis and returns variants ranked by predicted functional impact.
+
+## Development
+
+### Building from Source
+
+```bash
 git clone https://github.com/taehojo/alphagenome-mcp.git
 cd alphagenome-mcp
 
 # Install dependencies
 npm install
-
-# Install Python dependencies
 pip install -r requirements.txt
 
 # Build TypeScript
 npm run build
 
-# Run locally with your API key
-ALPHAGENOME_API_KEY=your-key-here node build/index.js
+# Run development server
+npm run dev
 ```
 
 ### Project Structure
@@ -131,46 +174,92 @@ ALPHAGENOME_API_KEY=your-key-here node build/index.js
 ```
 alphagenome-mcp/
 ├── src/
-│   ├── index.ts              # Main MCP server
-│   ├── alphagenome-client.ts # API client (Python bridge)
+│   ├── index.ts              # MCP server implementation
+│   ├── alphagenome-client.ts # AlphaGenome API client
 │   ├── tools.ts              # MCP tool definitions
-│   ├── types.ts              # TypeScript types
+│   ├── types.ts              # TypeScript type definitions
 │   └── utils/
-│       ├── validation.ts     # Input validation
+│       ├── validation.ts     # Zod validation schemas
 │       └── formatting.ts     # Output formatting
 ├── scripts/
-│   └── alphagenome_bridge.py # Python bridge to AlphaGenome API
-├── docs/                     # Documentation
-├── build/                    # Compiled TypeScript
-└── requirements.txt          # Python dependencies
+│   └── alphagenome_bridge.py # Python bridge to AlphaGenome SDK
+├── tests/                     # Unit and integration tests
+└── docs/                      # Additional documentation
 ```
 
----
+### Testing
 
-## 📝 License
+```bash
+npm run lint        # ESLint type checking
+npm run typecheck   # TypeScript compilation check
+npm test            # Run test suite
+```
 
-MIT License - see [LICENSE](LICENSE) file
+## API Reference
+
+### MCP Tools
+
+#### `predict_variant_effect`
+
+Predicts regulatory impact of a single nucleotide variant.
+
+**Parameters:**
+- `chromosome`: string (format: chr1-chr22, chrX, chrY)
+- `position`: integer (1-based genomic coordinate)
+- `ref`: string (reference allele: A, T, G, C)
+- `alt`: string (alternate allele: A, T, G, C)
+- `output_types`: array (optional: specific modalities to analyze)
+- `tissue_type`: string (optional: tissue context for predictions)
+
+#### `analyze_region`
+
+Analyzes a genomic region for regulatory elements.
+
+**Parameters:**
+- `chromosome`: string
+- `start`: integer (1-based start position)
+- `end`: integer (1-based end position)
+- `analysis_types`: array (optional: element types to identify)
+- `resolution`: string (base or window resolution)
+
+#### `batch_score_variants`
+
+Scores multiple variants and ranks by regulatory impact.
+
+**Parameters:**
+- `variants`: array of variant objects
+- `scoring_metric`: string (rna_seq, splice, regulatory_impact, combined)
+- `top_n`: integer (number of top variants to return)
+
+## Scientific Applications
+
+This tool is designed for:
+
+- **Post-GWAS Analysis**: Functional interpretation of genome-wide association study findings
+- **Clinical Variant Interpretation**: Assessment of regulatory variants in diagnostic sequencing
+- **Regulatory Genomics Research**: Investigation of gene regulation mechanisms
+- **Precision Medicine**: Identification of regulatory variants affecting drug response
+- **Evolutionary Genomics**: Analysis of regulatory sequence conservation and divergence
+
+## Citations
+
+If you use this tool in your research, please cite:
+
+- AlphaGenome: [Google DeepMind's AlphaGenome publication](https://deepmind.google/discover/blog/alphagenome/)
+- Model Context Protocol: [Anthropic MCP Documentation](https://modelcontextprotocol.io/)
+
+## License
+
+MIT License - see [LICENSE](LICENSE) file for details.
 
 Copyright (c) 2025 Taeho Jo
 
----
-
-## 🙏 Acknowledgments
-
-- **[AlphaGenome](https://deepmind.google/discover/blog/alphagenome/)** - Google DeepMind's genomic AI (inspiration)
-- **[Model Context Protocol](https://modelcontextprotocol.io/)** - Anthropic's protocol for AI tool integration
-- **[Claude](https://claude.ai/)** - Anthropic's AI assistant
-
----
-
-## 📬 Contact & Support
+## Technical Support
 
 - **Issues**: [GitHub Issues](https://github.com/taehojo/alphagenome-mcp/issues)
 - **Email**: taehjo@gmail.com
-- **GitHub**: [@taehojo](https://github.com/taehojo)
+- **Repository**: [github.com/taehojo/alphagenome-mcp](https://github.com/taehojo/alphagenome-mcp)
 
----
+## Acknowledgments
 
-**Made with ❤️ for the genomics research community**
-
-*Powered by Google DeepMind's AlphaGenome AI*
+This project implements the Model Context Protocol specification by Anthropic and provides programmatic access to Google DeepMind's AlphaGenome AI model for genomic variant analysis.
