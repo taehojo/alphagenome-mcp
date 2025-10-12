@@ -4,9 +4,9 @@
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 [![TypeScript](https://img.shields.io/badge/TypeScript-5.3-blue.svg)](https://www.typescriptlang.org/)
 
-**MCP server for AI-powered genomic variant analysis (Proof of Concept)**
+**MCP server for AI-powered genomic variant analysis using Google DeepMind's AlphaGenome**
 
-> ⚠️ **IMPORTANT**: This is a **proof-of-concept** implementation with mock data. The actual AlphaGenome API from Google DeepMind is not yet publicly available. This server demonstrates what will be possible when the API becomes accessible.
+> ✅ **Real AlphaGenome API Integration**: This server uses Google DeepMind's AlphaGenome Python SDK to provide AI-powered genomic variant analysis through Claude Desktop.
 
 ---
 
@@ -16,16 +16,8 @@
 - 🔍 **Regulatory Element Discovery** - Identify promoters, enhancers, and transcription factor binding sites
 - 📊 **Batch Variant Scoring** - Prioritize hundreds of variants at scale
 - 💬 **Natural Language Interface** - No coding required, just ask Claude in plain English
-- ⚡ **Lightning Fast** - Get results in seconds (mock mode)
-- 🔬 **Research Grade Design** - Architecture ready for real AlphaGenome integration
-
----
-
-## 🚧 Current Status
-
-**Mock Mode Only**: All predictions currently use simulated data for demonstration purposes.
-
-This project is ready to integrate with the real AlphaGenome API once it becomes publicly available. The architecture is designed for easy migration from mock to production.
+- ⚡ **Lightning Fast** - Get results in seconds using AlphaGenome AI
+- 🔬 **Research Grade** - Powered by Google DeepMind's state-of-the-art genomics AI
 
 ---
 
@@ -33,18 +25,60 @@ This project is ready to integrate with the real AlphaGenome API once it becomes
 
 ### Prerequisites
 
-- [Claude Desktop](https://claude.ai/download) installed
-- Node.js 18+ (for local development)
+1. **Node.js** 18+ - For the MCP server
+2. **Python 3** - For AlphaGenome API
+3. **Claude Desktop** - For the chat interface
+4. **AlphaGenome API Key** - Get from [Google DeepMind](https://deepmind.google)
 
 ### Installation
 
-**Coming soon**: One-line install via npm once published.
+#### Step 1: Install Python Dependencies
 
-For now, see development instructions below.
+```bash
+pip install alphagenome numpy
+```
+
+#### Step 2: Install MCP Server
+
+```bash
+# Via npx (recommended - no installation needed)
+npx @jolab/alphagenome-mcp
+
+# Or install globally
+npm install -g @jolab/alphagenome-mcp
+```
+
+#### Step 3: Configure Claude Desktop
+
+Add to your Claude Desktop config (`~/Library/Application Support/Claude/claude_desktop_config.json` on macOS):
+
+```json
+{
+  "mcpServers": {
+    "alphagenome": {
+      "command": "npx",
+      "args": ["-y", "@jolab/alphagenome-mcp"],
+      "env": {
+        "ALPHAGENOME_API_KEY": "your-api-key-here"
+      }
+    }
+  }
+}
+```
+
+Or use the Claude MCP command:
+
+```bash
+claude mcp add alphagenome -- npx -y @jolab/alphagenome-mcp --api-key YOUR_API_KEY
+```
+
+#### Step 4: Restart Claude Desktop
+
+Completely quit and restart Claude Desktop to load the new MCP server.
 
 ---
 
-## 💡 Usage Examples (Mock Mode)
+## 💡 Usage Examples
 
 ### 🧬 Basic Variant Analysis
 
@@ -82,11 +116,14 @@ cd alphagenome-mcp
 # Install dependencies
 npm install
 
+# Install Python dependencies
+pip install -r requirements.txt
+
 # Build TypeScript
 npm run build
 
-# Run locally (mock mode)
-ALPHAGENOME_API_KEY=mock node build/index.js
+# Run locally with your API key
+ALPHAGENOME_API_KEY=your-key-here node build/index.js
 ```
 
 ### Project Structure
@@ -95,16 +132,17 @@ ALPHAGENOME_API_KEY=mock node build/index.js
 alphagenome-mcp/
 ├── src/
 │   ├── index.ts              # Main MCP server
-│   ├── alphagenome-client.ts # API client (mock implementation)
+│   ├── alphagenome-client.ts # API client (Python bridge)
 │   ├── tools.ts              # MCP tool definitions
 │   ├── types.ts              # TypeScript types
 │   └── utils/
 │       ├── validation.ts     # Input validation
-│       ├── formatting.ts     # Output formatting
-│       └── errors.ts         # Custom errors
-├── tests/                    # Test suite (TBD)
+│       └── formatting.ts     # Output formatting
+├── scripts/
+│   └── alphagenome_bridge.py # Python bridge to AlphaGenome API
 ├── docs/                     # Documentation
-└── build/                    # Compiled output
+├── build/                    # Compiled TypeScript
+└── requirements.txt          # Python dependencies
 ```
 
 ---
@@ -135,4 +173,4 @@ Copyright (c) 2025 Taeho Jo
 
 **Made with ❤️ for the genomics research community**
 
-*This is a proof-of-concept awaiting official AlphaGenome API access*
+*Powered by Google DeepMind's AlphaGenome AI*

@@ -10,7 +10,6 @@ export function formatVariantResult(result: VariantResult): string {
   const time = new Date().toISOString().split('T')[1].split('.')[0];
 
   let output = `# 🧬 AlphaGenome Variant Analysis\n\n`;
-  output += `⚠️ **MOCK DATA**: This is simulated data for demonstration purposes only\n\n`;
   output += `**Variant**: ${result.variant}\n`;
   if (result.gene_context) {
     output += `**Gene Context**: ${result.gene_context}\n`;
@@ -107,14 +106,14 @@ export function formatVariantResult(result: VariantResult): string {
 
   // Disclaimer
   output += `---\n\n`;
-  output += `## ⚠️ Important Disclaimers\n\n`;
-  output += `**This is a MOCK PREDICTION for demonstration purposes only.**\n\n`;
-  output += `- ❌ NOT real AlphaGenome API data\n`;
-  output += `- ❌ NOT for clinical diagnosis or treatment decisions\n`;
-  output += `- ✅ Proof-of-concept architecture demonstration\n`;
-  output += `- ✅ Ready for real API integration when available\n\n`;
+  output += `## ⚠️ Important Disclaimer\n\n`;
+  output += `**For Research Use Only**\n\n`;
+  output += `- ⚠️ NOT for clinical diagnosis or treatment decisions\n`;
+  output += `- ✅ Powered by Google DeepMind's AlphaGenome AI\n`;
+  output += `- ✅ Predictions based on multi-modal genomic data\n`;
+  output += `- 📋 Always validate findings with wet-lab experiments\n\n`;
   output += `---\n\n`;
-  output += `*Mock AlphaGenome MCP Server v0.1.0*\n`;
+  output += `*AlphaGenome MCP Server v0.1.0*\n`;
   output += `*GitHub: https://github.com/taehojo/alphagenome-mcp*\n`;
 
   return output;
@@ -128,7 +127,6 @@ export function formatRegionResult(result: RegionResult): string {
   const time = new Date().toISOString().split('T')[1].split('.')[0];
 
   let output = `# 🔍 AlphaGenome Region Analysis\n\n`;
-  output += `⚠️ **MOCK DATA**: This is simulated data for demonstration purposes only\n\n`;
   output += `**Region**: ${result.region}\n`;
   output += `**Analysis Date**: ${date} ${time} UTC\n\n`;
   output += `---\n\n`;
@@ -198,11 +196,12 @@ export function formatRegionResult(result: RegionResult): string {
 
   output += `---\n\n`;
   output += `## ⚠️ Important Disclaimer\n\n`;
-  output += `**This is MOCK DATA for demonstration purposes only.**\n\n`;
-  output += `- ❌ NOT real AlphaGenome API predictions\n`;
-  output += `- ✅ Proof-of-concept architecture demonstration\n\n`;
+  output += `**For Research Use Only**\n\n`;
+  output += `- ⚠️ NOT for clinical use or diagnosis\n`;
+  output += `- ✅ Powered by AlphaGenome AI predictions\n`;
+  output += `- 📋 Validate with experimental data\n\n`;
   output += `---\n\n`;
-  output += `*Mock AlphaGenome MCP Server v0.1.0*\n`;
+  output += `*AlphaGenome MCP Server v0.1.0*\n`;
   output += `*GitHub: https://github.com/taehojo/alphagenome-mcp*\n`;
 
   return output;
@@ -216,7 +215,6 @@ export function formatBatchResult(result: BatchResult): string {
   const time = new Date().toISOString().split('T')[1].split('.')[0];
 
   let output = `# 📊 AlphaGenome Batch Variant Analysis\n\n`;
-  output += `⚠️ **MOCK DATA**: This is simulated data for demonstration purposes only\n\n`;
   output += `**Total Variants Analyzed**: ${result.total_analyzed}\n`;
   output += `**Analysis Date**: ${date} ${time} UTC\n\n`;
   output += `---\n\n`;
@@ -256,11 +254,12 @@ export function formatBatchResult(result: BatchResult): string {
 
   output += `---\n\n`;
   output += `## ⚠️ Important Disclaimer\n\n`;
-  output += `**This is MOCK DATA for demonstration purposes only.**\n\n`;
-  output += `- ❌ NOT real AlphaGenome API predictions\n`;
-  output += `- ✅ Proof-of-concept architecture demonstration\n\n`;
+  output += `**For Research Use Only**\n\n`;
+  output += `- ⚠️ NOT for clinical use or diagnosis\n`;
+  output += `- ✅ Powered by AlphaGenome AI predictions\n`;
+  output += `- 📋 Validate with experimental data\n\n`;
   output += `---\n\n`;
-  output += `*Mock AlphaGenome MCP Server v0.1.0*\n`;
+  output += `*AlphaGenome MCP Server v0.1.0*\n`;
   output += `*GitHub: https://github.com/taehojo/alphagenome-mcp*\n`;
 
   return output;

@@ -1,0 +1,16 @@
+# AlphaGenome MCP Server - Python Dependencies
+#
+# These Python packages are required for the AlphaGenome MCP server to function.
+# The server uses a Python bridge to communicate with Google DeepMind's AlphaGenome API.
+#
+# Installation:
+#   pip install -r requirements.txt
+#
+# Or install individually:
+#   pip install alphagenome numpy
+
+# Google DeepMind's AlphaGenome Python SDK
+alphagenome>=0.1.0
+
+# NumPy for numerical computations (required by AlphaGenome)
+numpy>=1.20.0

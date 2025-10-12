@@ -199,7 +199,7 @@ async function main() {
   console.error('✅ Server ready and listening');
   console.error('🔗 GitHub: https://github.com/taehojo/alphagenome-mcp');
   console.error('📦 npm: @jolab/alphagenome-mcp');
-  console.error('⚠️  Mock mode: Using simulated data for demonstration\n');
+  console.error('🐍 Python requirements: python3, pip install alphagenome\n');
 }
 
 // Start the server
