@@ -1,0 +1,83 @@
+{
+  "name": "@jolab/alphagenome-mcp",
+  "version": "0.1.0",
+  "description": "MCP server integrating Google DeepMind's AlphaGenome for AI-powered genomic variant analysis with Claude Desktop",
+  "main": "build/index.js",
+  "types": "build/index.d.ts",
+  "bin": {
+    "alphagenome-mcp": "./build/index.js"
+  },
+  "files": [
+    "build/",
+    "README.md",
+    "LICENSE",
+    "CHANGELOG.md"
+  ],
+  "scripts": {
+    "build": "tsc",
+    "dev": "tsc --watch",
+    "test": "node --test build/tests/**/*.test.js",
+    "test:watch": "node --test --watch",
+    "lint": "eslint src/**/*.ts",
+    "lint:fix": "eslint src/**/*.ts --fix",
+    "format": "prettier --write 'src/**/*.ts'",
+    "format:check": "prettier --check 'src/**/*.ts'",
+    "prepare": "npm run build",
+    "prepublishOnly": "npm run lint && npm test",
+    "clean": "rm -rf build/",
+    "typecheck": "tsc --noEmit"
+  },
+  "keywords": [
+    "mcp",
+    "model-context-protocol",
+    "alphagenome",
+    "deepmind",
+    "genomics",
+    "bioinformatics",
+    "genetics",
+    "variant-analysis",
+    "regulatory-genomics",
+    "gene-regulation",
+    "dna-analysis",
+    "computational-biology",
+    "precision-medicine",
+    "claude",
+    "claude-desktop",
+    "ai",
+    "machine-learning",
+    "anthropic"
+  ],
+  "author": {
+    "name": "Taeho Jo",
+    "email": "taehjo@gmail.com",
+    "url": "https://github.com/taehojo"
+  },
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/taehojo/alphagenome-mcp.git"
+  },
+  "bugs": {
+    "url": "https://github.com/taehojo/alphagenome-mcp/issues"
+  },
+  "homepage": "https://github.com/taehojo/alphagenome-mcp#readme",
+  "dependencies": {
+    "@modelcontextprotocol/sdk": "^0.5.0",
+    "axios": "^1.6.7",
+    "axios-retry": "^4.0.0",
+    "zod": "^3.22.4"
+  },
+  "devDependencies": {
+    "@types/node": "^20.11.5",
+    "@typescript-eslint/eslint-plugin": "^6.19.0",
+    "@typescript-eslint/parser": "^6.19.0",
+    "eslint": "^8.56.0",
+    "eslint-config-prettier": "^9.1.0",
+    "prettier": "^3.2.4",
+    "typescript": "^5.3.3"
+  },
+  "engines": {
+    "node": ">=18.0.0",
+    "npm": ">=9.0.0"
+  }
+}

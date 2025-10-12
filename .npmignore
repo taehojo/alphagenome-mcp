@@ -1,0 +1,24 @@
+# Source files (only ship build/)
+src/
+tests/
+docs/
+
+# Config files
+tsconfig.json
+.eslintrc.json
+.prettierrc
+
+# CI/CD
+.github/
+
+# Development
+.vscode/
+.idea/
+*.swp
+
+# Testing
+coverage/
+
+# Git
+.git/
+.gitignore
