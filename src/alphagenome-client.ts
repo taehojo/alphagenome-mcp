@@ -61,9 +61,8 @@ export class AlphaGenomeClient {
     const __dirname = path.dirname(__filename);
     this.pythonBridgePath = path.join(__dirname, '..', 'scripts', 'alphagenome_bridge.py');
 
-    console.error('🧬 AlphaGenome Client initialized');
-    console.error(`🐍 Python bridge: ${this.pythonBridgePath}`);
-    console.error('✅ Ready to call AlphaGenome API via Python SDK\n');
+    // Minimal logging during initialization to avoid stdio interference
+    console.error('[AlphaGenome] Client initialized');
   }
 
   /**

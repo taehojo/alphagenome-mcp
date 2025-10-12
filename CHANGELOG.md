@@ -7,6 +7,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.1.3] - 2025-10-12
+
+### Changed
+- Optimized server initialization to be fully non-blocking
+- Reduced logging verbosity in AlphaGenomeClient constructor to avoid stdio interference
+- Added initialization time warning for first API call (30-60s expected)
+
+### Fixed
+- MCP health check timeout issues by ensuring no blocking operations during startup
+- Client initialization now completely deferred until first tool call
+
 ## [0.1.2] - 2025-10-12
 
 ### Changed
