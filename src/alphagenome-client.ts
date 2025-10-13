@@ -233,6 +233,240 @@ export class AlphaGenomeClient {
   }
 
   /**
+   * Assess pathogenicity of a variant
+   */
+  async assessPathogenicity(params: VariantPredictionParams): Promise<any> {
+    try {
+      return await this.callPythonBridge('assess_pathogenicity', {
+        chromosome: params.chromosome,
+        position: params.position,
+        ref: params.ref,
+        alt: params.alt,
+        tissue_type: params.tissue_type,
+      });
+    } catch (error) {
+      if (error instanceof ApiError) throw error;
+      throw new ApiError(`Pathogenicity assessment failed: ${error}`, 500);
+    }
+  }
+
+  /**
+   * Predict tissue-specific effects
+   */
+  async predictTissueSpecific(params: any): Promise<any> {
+    try {
+      return await this.callPythonBridge('predict_tissue_specific', params);
+    } catch (error) {
+      if (error instanceof ApiError) throw error;
+      throw new ApiError(`Tissue-specific prediction failed: ${error}`, 500);
+    }
+  }
+
+  /**
+   * Compare two variants
+   */
+  async compareVariants(params: any): Promise<any> {
+    try {
+      return await this.callPythonBridge('compare_variants', params);
+    } catch (error) {
+      if (error instanceof ApiError) throw error;
+      throw new ApiError(`Variant comparison failed: ${error}`, 500);
+    }
+  }
+
+  /**
+   * Predict splice impact
+   */
+  async predictSpliceImpact(params: VariantPredictionParams): Promise<any> {
+    try {
+      return await this.callPythonBridge('predict_splice_impact', {
+        chromosome: params.chromosome,
+        position: params.position,
+        ref: params.ref,
+        alt: params.alt,
+        tissue_type: params.tissue_type,
+      });
+    } catch (error) {
+      if (error instanceof ApiError) throw error;
+      throw new ApiError(`Splice impact prediction failed: ${error}`, 500);
+    }
+  }
+
+  /**
+   * Predict expression impact
+   */
+  async predictExpressionImpact(params: VariantPredictionParams): Promise<any> {
+    try {
+      return await this.callPythonBridge('predict_expression_impact', {
+        chromosome: params.chromosome,
+        position: params.position,
+        ref: params.ref,
+        alt: params.alt,
+        tissue_type: params.tissue_type,
+      });
+    } catch (error) {
+      if (error instanceof ApiError) throw error;
+      throw new ApiError(`Expression impact prediction failed: ${error}`, 500);
+    }
+  }
+
+  /**
+   * Analyze GWAS locus
+   */
+  async analyzeGwasLocus(params: any): Promise<any> {
+    try {
+      return await this.callPythonBridge('analyze_gwas_locus', params);
+    } catch (error) {
+      if (error instanceof ApiError) throw error;
+      throw new ApiError(`GWAS locus analysis failed: ${error}`, 500);
+    }
+  }
+
+  /**
+   * Compare alleles
+   */
+  async compareAlleles(params: any): Promise<any> {
+    try {
+      return await this.callPythonBridge('compare_alleles', params);
+    } catch (error) {
+      if (error instanceof ApiError) throw error;
+      throw new ApiError(`Allele comparison failed: ${error}`, 500);
+    }
+  }
+
+  /**
+   * Batch tissue comparison
+   */
+  async batchTissueComparison(params: any): Promise<any> {
+    try {
+      return await this.callPythonBridge('batch_tissue_comparison', params);
+    } catch (error) {
+      if (error instanceof ApiError) throw error;
+      throw new ApiError(`Batch tissue comparison failed: ${error}`, 500);
+    }
+  }
+
+  /**
+   * Predict TF binding impact
+   */
+  async predictTfBindingImpact(params: VariantPredictionParams): Promise<any> {
+    try {
+      return await this.callPythonBridge('predict_tf_binding_impact', params);
+    } catch (error) {
+      if (error instanceof ApiError) throw error;
+      throw new ApiError(`TF binding impact prediction failed: ${error}`, 500);
+    }
+  }
+
+  /**
+   * Predict chromatin impact
+   */
+  async predictChromatinImpact(params: VariantPredictionParams): Promise<any> {
+    try {
+      return await this.callPythonBridge('predict_chromatin_impact', params);
+    } catch (error) {
+      if (error instanceof ApiError) throw error;
+      throw new ApiError(`Chromatin impact prediction failed: ${error}`, 500);
+    }
+  }
+
+  /**
+   * Compare protective vs risk variants
+   */
+  async compareProtectiveRisk(params: any): Promise<any> {
+    try {
+      return await this.callPythonBridge('compare_protective_risk', params);
+    } catch (error) {
+      if (error instanceof ApiError) throw error;
+      throw new ApiError(`Protective vs risk comparison failed: ${error}`, 500);
+    }
+  }
+
+  /**
+   * Filter variants by pathogenicity threshold
+   */
+  async batchPathogenicityFilter(params: any): Promise<any> {
+    try {
+      return await this.callPythonBridge('batch_pathogenicity_filter', params);
+    } catch (error) {
+      if (error instanceof ApiError) throw error;
+      throw new ApiError(`Batch pathogenicity filter failed: ${error}`, 500);
+    }
+  }
+
+  /**
+   * Compare variants in the same gene
+   */
+  async compareVariantsSameGene(params: any): Promise<any> {
+    try {
+      return await this.callPythonBridge('compare_variants_same_gene', params);
+    } catch (error) {
+      if (error instanceof ApiError) throw error;
+      throw new ApiError(`Same-gene variant comparison failed: ${error}`, 500);
+    }
+  }
+
+  /**
+   * Predict allele-specific effects
+   */
+  async predictAlleleSpecificEffects(params: VariantPredictionParams): Promise<any> {
+    try {
+      return await this.callPythonBridge('predict_allele_specific_effects', params);
+    } catch (error) {
+      if (error instanceof ApiError) throw error;
+      throw new ApiError(`Allele-specific effects prediction failed: ${error}`, 500);
+    }
+  }
+
+  /**
+   * Annotate regulatory context
+   */
+  async annotateRegulatoryContext(params: VariantPredictionParams): Promise<any> {
+    try {
+      return await this.callPythonBridge('annotate_regulatory_context', params);
+    } catch (error) {
+      if (error instanceof ApiError) throw error;
+      throw new ApiError(`Regulatory context annotation failed: ${error}`, 500);
+    }
+  }
+
+  /**
+   * Batch modality screen
+   */
+  async batchModalityScreen(params: any): Promise<any> {
+    try {
+      return await this.callPythonBridge('batch_modality_screen', params);
+    } catch (error) {
+      if (error instanceof ApiError) throw error;
+      throw new ApiError(`Batch modality screen failed: ${error}`, 500);
+    }
+  }
+
+  /**
+   * Generate comprehensive variant report
+   */
+  async generateVariantReport(params: VariantPredictionParams): Promise<any> {
+    try {
+      return await this.callPythonBridge('generate_variant_report', params);
+    } catch (error) {
+      if (error instanceof ApiError) throw error;
+      throw new ApiError(`Variant report generation failed: ${error}`, 500);
+    }
+  }
+
+  /**
+   * Explain variant impact in human-readable format
+   */
+  async explainVariantImpact(params: VariantPredictionParams): Promise<any> {
+    try {
+      return await this.callPythonBridge('explain_variant_impact', params);
+    } catch (error) {
+      if (error instanceof ApiError) throw error;
+      throw new ApiError(`Variant impact explanation failed: ${error}`, 500);
+    }
+  }
+
+  /**
    * Test the connection to AlphaGenome API
    *
    * @returns Promise resolving to true if connection successful

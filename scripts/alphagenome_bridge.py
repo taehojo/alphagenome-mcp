@@ -252,68 +252,460 @@ def predict_variant_effect(client, params: Dict[str, Any]) -> Dict[str, Any]:
         'interpretation': interpretation
     }
 
-def analyze_region(client, params: Dict[str, Any]) -> Dict[str, Any]:
+def assess_pathogenicity(client, params: Dict[str, Any]) -> Dict[str, Any]:
     """
-    Analyze a genomic region for regulatory elements.
-
-    Args:
-        client: AlphaGenome client instance
-        params: Dictionary with chromosome, start, end, analysis_type, resolution
-
-    Returns:
-        Dictionary with region analysis results matching TypeScript RegionResult type
+    Comprehensive pathogenicity assessment of a variant.
+    Uses all modalities to provide clinical interpretation.
     """
-    chromosome = params.get('chromosome')
-    start = params.get('start')
-    end = params.get('end')
+    result = predict_variant_effect(client, params)
 
-    # Create interval
-    interval = genome.Interval(chromosome=chromosome, start=start, end=end)
+    # Calculate pathogenicity score based on multiple factors
+    predictions = result['predictions']
 
-    # Predict for interval
-    outputs = client.predict_interval(
-        interval=interval,
-        requested_outputs=ALL_MODALITIES
-    )
+    # Score components
+    expression_impact = abs(predictions.get('rna_seq', {}).get('fold_change', 0))
+    splice_impact = abs(predictions.get('splice', {}).get('delta', 0))
+    tf_impact = max([tf.get('change', 0) for tf in predictions.get('tf_binding', [])], default=0)
 
-    # Extract regulatory elements (simplified - would need more sophisticated analysis)
-    elements = {
-        'promoters': [],
-        'enhancers': [],
-        'tf_binding_sites': [],
-        'chromatin_states': []
-    }
+    # Combined pathogenicity score (0-1 scale)
+    pathogenicity_score = min(1.0, (expression_impact * 0.4 + splice_impact * 0.4 + tf_impact * 0.2))
 
-    # Identify high-activity regions as potential promoters
-    if hasattr(outputs, 'cage') and outputs.cage:
-        cage_values = outputs.cage.values
-        high_activity = np.where(cage_values > np.percentile(cage_values, 90))[0]
-
-        for idx in high_activity[:5]:  # Top 5
-            elements['promoters'].append({
-                'start': int(start + idx),
-                'end': int(start + idx + 100),
-                'score': float(cage_values[idx]),
-                'type': 'predicted_promoter',
-                'associated_gene': None
-            })
-
-    # Identify enhancers from histone marks
-    if hasattr(outputs, 'chip_histone') and outputs.chip_histone:
-        histone_values = outputs.chip_histone.values
-        enhancer_regions = np.where(histone_values > np.percentile(histone_values, 85))[0]
-
-        for idx in enhancer_regions[:5]:  # Top 5
-            elements['enhancers'].append({
-                'start': int(start + idx),
-                'end': int(start + idx + 500),
-                'score': float(histone_values[idx]),
-                'type': 'active_enhancer'
-            })
+    # Clinical classification
+    if pathogenicity_score > 0.7:
+        classification = 'pathogenic'
+    elif pathogenicity_score > 0.4:
+        classification = 'likely_pathogenic'
+    elif pathogenicity_score > 0.2:
+        classification = 'uncertain_significance'
+    elif pathogenicity_score > 0.1:
+        classification = 'likely_benign'
+    else:
+        classification = 'benign'
 
     return {
-        'region': f"{chromosome}:{start}-{end}",
-        'elements': elements
+        'variant': result['variant'],
+        'pathogenicity_score': float(pathogenicity_score),
+        'classification': classification,
+        'evidence': {
+            'expression_impact': float(expression_impact),
+            'splice_impact': float(splice_impact),
+            'tf_binding_impact': float(tf_impact)
+        },
+        'predictions': predictions
+    }
+
+def predict_tissue_specific(client, params: Dict[str, Any]) -> Dict[str, Any]:
+    """
+    Predict variant effects across multiple tissues.
+    """
+    tissues = params.get('tissues', ['brain', 'liver', 'heart'])
+
+    results = {}
+    for tissue in tissues:
+        tissue_params = params.copy()
+        tissue_params['tissue_type'] = tissue
+        try:
+            result = predict_variant_effect(client, tissue_params)
+            results[tissue] = {
+                'expression_impact': result['predictions'].get('rna_seq', {}).get('fold_change', 0),
+                'splice_impact': result['predictions'].get('splice', {}).get('delta', 0),
+                'impact_level': result['interpretation']['impact_level']
+            }
+        except Exception as e:
+            print(f"Warning: Failed to predict for tissue {tissue}: {e}", file=sys.stderr)
+            results[tissue] = {'error': str(e)}
+
+    return {
+        'variant': f"{params.get('chromosome')}:{params.get('position')}{params.get('ref')}>{params.get('alt')}",
+        'tissue_results': results
+    }
+
+def compare_variants(client, params: Dict[str, Any]) -> Dict[str, Any]:
+    """
+    Compare two variants side-by-side.
+    """
+    variant1 = params.get('variant1')
+    variant2 = params.get('variant2')
+
+    result1 = predict_variant_effect(client, variant1)
+    result2 = predict_variant_effect(client, variant2)
+
+    return {
+        'variant1': {
+            'id': result1['variant'],
+            'impact': result1['interpretation']['impact_level'],
+            'expression_fc': result1['predictions'].get('rna_seq', {}).get('fold_change', 0),
+            'splice_delta': result1['predictions'].get('splice', {}).get('delta', 0)
+        },
+        'variant2': {
+            'id': result2['variant'],
+            'impact': result2['interpretation']['impact_level'],
+            'expression_fc': result2['predictions'].get('rna_seq', {}).get('fold_change', 0),
+            'splice_delta': result2['predictions'].get('splice', {}).get('delta', 0)
+        },
+        'comparison': {
+            'more_severe': result1['variant'] if abs(result1['predictions'].get('rna_seq', {}).get('fold_change', 0)) > abs(result2['predictions'].get('rna_seq', {}).get('fold_change', 0)) else result2['variant']
+        }
+    }
+
+def predict_splice_impact(client, params: Dict[str, Any]) -> Dict[str, Any]:
+    """
+    Focus on splicing-specific effects only.
+    """
+    # Override output_types to splice-specific modalities
+    params['output_types'] = [
+        dna_client.OutputType.SPLICE_SITES,
+        dna_client.OutputType.SPLICE_SITE_USAGE,
+        dna_client.OutputType.SPLICE_JUNCTIONS
+    ]
+
+    result = predict_variant_effect(client, params)
+
+    return {
+        'variant': result['variant'],
+        'splice_predictions': result['predictions'].get('splice', {}),
+        'impact_level': result['interpretation']['impact_level'],
+        'clinical_significance': result['interpretation']['clinical_significance']
+    }
+
+def predict_expression_impact(client, params: Dict[str, Any]) -> Dict[str, Any]:
+    """
+    Focus on gene expression effects only.
+    """
+    params['output_types'] = [
+        dna_client.OutputType.RNA_SEQ,
+        dna_client.OutputType.CAGE
+    ]
+
+    result = predict_variant_effect(client, params)
+
+    return {
+        'variant': result['variant'],
+        'expression_predictions': result['predictions'].get('rna_seq', {}),
+        'fold_change': result['predictions'].get('rna_seq', {}).get('fold_change', 0),
+        'impact_level': result['interpretation']['impact_level']
+    }
+
+def analyze_gwas_locus(client, params: Dict[str, Any]) -> Dict[str, Any]:
+    """
+    Analyze all variants in a GWAS locus.
+    """
+    variants_data = params.get('variants', [])
+
+    results = []
+    for v in variants_data:
+        try:
+            result = predict_variant_effect(client, v)
+            results.append({
+                'variant': result['variant'],
+                'impact_score': abs(result['predictions'].get('rna_seq', {}).get('fold_change', 0)),
+                'impact_level': result['interpretation']['impact_level']
+            })
+        except Exception as e:
+            print(f"Warning: Failed to analyze variant: {e}", file=sys.stderr)
+            continue
+
+    # Sort by impact score
+    results.sort(key=lambda x: x['impact_score'], reverse=True)
+
+    return {
+        'locus': f"{params.get('chromosome', 'unknown')}:{params.get('start', 0)}-{params.get('end', 0)}",
+        'total_variants': len(results),
+        'ranked_variants': results
+    }
+
+def compare_alleles(client, params: Dict[str, Any]) -> Dict[str, Any]:
+    """
+    Compare different alleles at the same position.
+    """
+    chromosome = params.get('chromosome')
+    position = params.get('position')
+    ref = params.get('ref')
+    alts = params.get('alts', [])
+
+    results = {}
+    for alt in alts:
+        try:
+            var_params = {
+                'chromosome': chromosome,
+                'position': position,
+                'ref': ref,
+                'alt': alt
+            }
+            result = predict_variant_effect(client, var_params)
+            results[f"{ref}>{alt}"] = {
+                'impact_level': result['interpretation']['impact_level'],
+                'expression_fc': result['predictions'].get('rna_seq', {}).get('fold_change', 0),
+                'clinical_sig': result['interpretation']['clinical_significance']
+            }
+        except Exception as e:
+            print(f"Warning: Failed for allele {alt}: {e}", file=sys.stderr)
+            results[f"{ref}>{alt}"] = {'error': str(e)}
+
+    return {
+        'position': f"{chromosome}:{position}",
+        'reference': ref,
+        'allele_comparisons': results
+    }
+
+def batch_tissue_comparison(client, params: Dict[str, Any]) -> Dict[str, Any]:
+    """
+    Analyze multiple variants across multiple tissues.
+    """
+    variants_data = params.get('variants', [])
+    tissues = params.get('tissues', ['brain', 'liver', 'heart'])
+
+    results = []
+    for v in variants_data:
+        var_id = f"{v.get('chromosome')}:{v.get('position')}{v.get('ref')}>{v.get('alt')}"
+        tissue_results = {}
+
+        for tissue in tissues:
+            v['tissue_type'] = tissue
+            try:
+                result = predict_variant_effect(client, v)
+                tissue_results[tissue] = {
+                    'impact': result['interpretation']['impact_level'],
+                    'expression_fc': result['predictions'].get('rna_seq', {}).get('fold_change', 0)
+                }
+            except Exception as e:
+                tissue_results[tissue] = {'error': str(e)}
+
+        results.append({
+            'variant': var_id,
+            'tissues': tissue_results
+        })
+
+    return {
+        'total_variants': len(results),
+        'tissues_tested': tissues,
+        'results': results
+    }
+
+def predict_tf_binding_impact(client, params: Dict[str, Any]) -> Dict[str, Any]:
+    """Focus on TF binding effects only."""
+    params['output_types'] = [dna_client.OutputType.CHIP_TF]
+    result = predict_variant_effect(client, params)
+    return {
+        'variant': result['variant'],
+        'tf_binding': result['predictions'].get('tf_binding', []),
+        'impact_level': result['interpretation']['impact_level']
+    }
+
+def predict_chromatin_impact(client, params: Dict[str, Any]) -> Dict[str, Any]:
+    """Focus on chromatin accessibility changes."""
+    params['output_types'] = [dna_client.OutputType.ATAC, dna_client.OutputType.DNASE]
+    result = predict_variant_effect(client, params)
+    return {
+        'variant': result['variant'],
+        'predictions': result['predictions'],
+        'impact_level': result['interpretation']['impact_level']
+    }
+
+def compare_protective_risk(client, params: Dict[str, Any]) -> Dict[str, Any]:
+    """Compare protective vs risk alleles."""
+    protective = params.get('protective_variant')
+    risk = params.get('risk_variant')
+
+    result_protective = predict_variant_effect(client, protective)
+    result_risk = predict_variant_effect(client, risk)
+
+    return {
+        'protective': {
+            'variant': result_protective['variant'],
+            'impact': result_protective['interpretation']['impact_level'],
+            'expression_fc': result_protective['predictions'].get('rna_seq', {}).get('fold_change', 0)
+        },
+        'risk': {
+            'variant': result_risk['variant'],
+            'impact': result_risk['interpretation']['impact_level'],
+            'expression_fc': result_risk['predictions'].get('rna_seq', {}).get('fold_change', 0)
+        }
+    }
+
+def batch_pathogenicity_filter(client, params: Dict[str, Any]) -> Dict[str, Any]:
+    """Filter variants by pathogenicity threshold."""
+    variants_data = params.get('variants', [])
+    threshold = params.get('threshold', 0.5)
+
+    pathogenic_variants = []
+    for v in variants_data:
+        try:
+            result = assess_pathogenicity(client, v)
+            if result['pathogenicity_score'] >= threshold:
+                pathogenic_variants.append({
+                    'variant': result['variant'],
+                    'score': result['pathogenicity_score'],
+                    'classification': result['classification']
+                })
+        except Exception as e:
+            print(f"Warning: Failed for variant: {e}", file=sys.stderr)
+            continue
+
+    pathogenic_variants.sort(key=lambda x: x['score'], reverse=True)
+    return {
+        'total_analyzed': len(variants_data),
+        'pathogenic_count': len(pathogenic_variants),
+        'pathogenic_variants': pathogenic_variants
+    }
+
+def compare_variants_same_gene(client, params: Dict[str, Any]) -> Dict[str, Any]:
+    """Compare multiple variants in the same gene."""
+    variants_data = params.get('variants', [])
+    gene = params.get('gene', 'unknown')
+
+    results = []
+    for v in variants_data:
+        try:
+            result = predict_variant_effect(client, v)
+            results.append({
+                'variant': result['variant'],
+                'impact': result['interpretation']['impact_level'],
+                'expression_fc': result['predictions'].get('rna_seq', {}).get('fold_change', 0),
+                'clinical_sig': result['interpretation']['clinical_significance']
+            })
+        except Exception as e:
+            print(f"Warning: Failed: {e}", file=sys.stderr)
+            continue
+
+    results.sort(key=lambda x: abs(x['expression_fc']), reverse=True)
+    return {
+        'gene': gene,
+        'total_variants': len(results),
+        'ranked_variants': results
+    }
+
+def predict_allele_specific_effects(client, params: Dict[str, Any]) -> Dict[str, Any]:
+    """Analyze allele-specific expression effects."""
+    result = predict_variant_effect(client, params)
+
+    rna_data = result['predictions'].get('rna_seq', {})
+    ref_score = rna_data.get('reference_score', 0)
+    alt_score = rna_data.get('alternate_score', 0)
+
+    # Calculate allele-specific ratio
+    if ref_score + alt_score > 0:
+        ase_ratio = alt_score / (ref_score + alt_score)
+    else:
+        ase_ratio = 0.5
+
+    return {
+        'variant': result['variant'],
+        'ref_expression': ref_score,
+        'alt_expression': alt_score,
+        'ase_ratio': float(ase_ratio),
+        'interpretation': 'alt_biased' if ase_ratio > 0.6 else ('ref_biased' if ase_ratio < 0.4 else 'balanced')
+    }
+
+def annotate_regulatory_context(client, params: Dict[str, Any]) -> Dict[str, Any]:
+    """Add regulatory annotations to variant."""
+    result = predict_variant_effect(client, params)
+
+    # Determine regulatory context from predictions
+    predictions = result['predictions']
+    context = []
+
+    if predictions.get('rna_seq', {}).get('fold_change', 0) != 0:
+        context.append('expression_QTL')
+    if predictions.get('splice', {}).get('delta', 0) > 0.1:
+        context.append('splice_site')
+    if predictions.get('tf_binding'):
+        context.append('TF_binding_site')
+
+    return {
+        'variant': result['variant'],
+        'regulatory_context': context,
+        'predictions': predictions,
+        'impact_level': result['interpretation']['impact_level']
+    }
+
+def batch_modality_screen(client, params: Dict[str, Any]) -> Dict[str, Any]:
+    """Screen variants across specific modalities."""
+    variants_data = params.get('variants', [])
+    modality = params.get('modality', 'expression')
+
+    # Map modality names to OutputType enums
+    modality_map = {
+        'expression': [dna_client.OutputType.RNA_SEQ, dna_client.OutputType.CAGE],
+        'splicing': [dna_client.OutputType.SPLICE_SITES],
+        'tf_binding': [dna_client.OutputType.CHIP_TF],
+        'chromatin': [dna_client.OutputType.DNASE, dna_client.OutputType.ATAC]
+    }
+    modalities = modality_map.get(modality, [dna_client.OutputType.RNA_SEQ, dna_client.OutputType.SPLICE_SITES])
+
+    results = []
+    for v in variants_data:
+        # Create a copy with output_types
+        variant_params = v.copy()
+        variant_params['output_types'] = modalities
+        try:
+            result = predict_variant_effect(client, variant_params)
+            results.append({
+                'variant': result['variant'],
+                'predictions': result['predictions'],
+                'impact': result['interpretation']['impact_level']
+            })
+        except Exception as e:
+            print(f"Warning: Failed: {e}", file=sys.stderr)
+            continue
+
+    return {
+        'modalities_tested': [modality],  # Return string representation
+        'total_variants': len(results),
+        'results': results
+    }
+
+def generate_variant_report(client, params: Dict[str, Any]) -> Dict[str, Any]:
+    """Generate clinical report for variant."""
+    result = assess_pathogenicity(client, params)
+
+    # Build clinical report
+    report = {
+        'variant': result['variant'],
+        'classification': result['classification'].upper(),
+        'pathogenicity_score': result['pathogenicity_score'],
+        'evidence_summary': {
+            'expression_impact': f"{result['evidence']['expression_impact']:.4f}",
+            'splicing_impact': f"{result['evidence']['splice_impact']:.4f}",
+            'tf_binding_impact': f"{result['evidence']['tf_binding_impact']:.2f}"
+        },
+        'recommendation': 'Further clinical evaluation recommended' if result['pathogenicity_score'] > 0.5 else 'Routine monitoring',
+        'generated_date': 'API call timestamp'
+    }
+
+    return report
+
+def explain_variant_impact(client, params: Dict[str, Any]) -> Dict[str, Any]:
+    """Provide human-readable explanation of variant impact."""
+    result = predict_variant_effect(client, params)
+
+    # Generate explanation
+    predictions = result['predictions']
+    impact = result['interpretation']['impact_level']
+
+    explanation = []
+
+    if impact == 'high':
+        explanation.append("This variant has HIGH regulatory impact.")
+    elif impact == 'moderate':
+        explanation.append("This variant has MODERATE regulatory impact.")
+    else:
+        explanation.append("This variant has LOW regulatory impact.")
+
+    rna_fc = predictions.get('rna_seq', {}).get('fold_change', 0)
+    if abs(rna_fc) > 0.01:
+        direction = "increases" if rna_fc > 0 else "decreases"
+        explanation.append(f"It {direction} gene expression by {abs(rna_fc):.3f} fold.")
+
+    splice_delta = predictions.get('splice', {}).get('delta', 0)
+    if splice_delta > 0.1:
+        explanation.append(f"It significantly affects splicing (delta: {splice_delta:.3f}).")
+
+    return {
+        'variant': result['variant'],
+        'summary': ' '.join(explanation),
+        'impact_level': impact,
+        'clinical_significance': result['interpretation']['clinical_significance']
     }
 
 def batch_score_variants(client, params: Dict[str, Any]) -> Dict[str, Any]:
@@ -407,10 +799,44 @@ def main():
         # Route to appropriate handler
         if action == 'predict_variant':
             result = predict_variant_effect(client, params)
-        elif action == 'analyze_region':
-            result = analyze_region(client, params)
         elif action == 'batch_score':
             result = batch_score_variants(client, params)
+        elif action == 'assess_pathogenicity':
+            result = assess_pathogenicity(client, params)
+        elif action == 'predict_tissue_specific':
+            result = predict_tissue_specific(client, params)
+        elif action == 'compare_variants':
+            result = compare_variants(client, params)
+        elif action == 'predict_splice_impact':
+            result = predict_splice_impact(client, params)
+        elif action == 'predict_expression_impact':
+            result = predict_expression_impact(client, params)
+        elif action == 'analyze_gwas_locus':
+            result = analyze_gwas_locus(client, params)
+        elif action == 'compare_alleles':
+            result = compare_alleles(client, params)
+        elif action == 'batch_tissue_comparison':
+            result = batch_tissue_comparison(client, params)
+        elif action == 'predict_tf_binding_impact':
+            result = predict_tf_binding_impact(client, params)
+        elif action == 'predict_chromatin_impact':
+            result = predict_chromatin_impact(client, params)
+        elif action == 'compare_protective_risk':
+            result = compare_protective_risk(client, params)
+        elif action == 'batch_pathogenicity_filter':
+            result = batch_pathogenicity_filter(client, params)
+        elif action == 'compare_variants_same_gene':
+            result = compare_variants_same_gene(client, params)
+        elif action == 'predict_allele_specific_effects':
+            result = predict_allele_specific_effects(client, params)
+        elif action == 'annotate_regulatory_context':
+            result = annotate_regulatory_context(client, params)
+        elif action == 'batch_modality_screen':
+            result = batch_modality_screen(client, params)
+        elif action == 'generate_variant_report':
+            result = generate_variant_report(client, params)
+        elif action == 'explain_variant_impact':
+            result = explain_variant_impact(client, params)
         else:
             raise ValueError(f"Unknown action: {action}")
 
