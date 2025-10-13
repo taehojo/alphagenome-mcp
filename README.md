@@ -25,20 +25,20 @@ All 20 tools are lightweight wrappers around the same `predict_variant()` API en
 #### predict_variant_effect
 Full regulatory impact prediction across all 11 modalities.
 ```
-"Analyze chr19:44908684T>C (use alphagenome mcp)"
+"Use alphagenome to analyze chr19:44908684T>C"
 ```
 
 #### assess_pathogenicity
 Clinical pathogenicity scoring with evidence breakdown.
 ```
-"Assess the pathogenicity of rs429358 (use alphagenome mcp)"
+"Use alphagenome to assess the pathogenicity of rs429358"
 ```
 **Result:** `Pathogenic (score: 1.0)` with expression, splicing, and TF binding evidence.
 
 #### batch_score_variants
 Rank multiple variants by regulatory impact.
 ```
-"Score these AD variants: rs429358, rs7412, rs75932628 (use alphagenome mcp)"
+"Use alphagenome to score these AD variants: rs429358, rs7412, rs75932628"
 ```
 
 ### Tissue-Specific Analysis
@@ -46,14 +46,14 @@ Rank multiple variants by regulatory impact.
 #### predict_tissue_specific
 Compare variant effects across multiple tissues.
 ```
-"Compare rs429358 effects in brain and liver (use alphagenome mcp)"
+"Use alphagenome to compare rs429358 effects in brain and liver"
 ```
 **Result:** Brain: -0.002 FC, Liver: +0.0007 FC (tissue-differential effects)
 
 #### batch_tissue_comparison
 Multi-variant × multi-tissue analysis.
 ```
-"Test 5 variants in brain, liver, and heart (use alphagenome mcp)"
+"Use alphagenome to test 5 variants in brain, liver, and heart"
 ```
 
 ### Variant Comparison
@@ -61,28 +61,28 @@ Multi-variant × multi-tissue analysis.
 #### compare_variants
 Direct side-by-side comparison of two variants.
 ```
-"Compare APOE ε4 (rs429358) vs ε2 (rs7412) (use alphagenome mcp)"
+"Use alphagenome to compare APOE ε4 (rs429358) vs ε2 (rs7412)"
 ```
 **Result:** rs429358 more severe (high vs moderate impact)
 
 #### compare_alleles
 Compare different mutations at the same position.
 ```
-"Compare T>C, T>G, T>A at chr19:44908684 (use alphagenome mcp)"
+"Use alphagenome to compare T>C, T>G, T>A at chr19:44908684"
 ```
 **Result:** All three alleles show high regulatory impact
 
 #### compare_protective_risk
 Compare protective vs risk alleles directly.
 ```
-"Compare APOE protective (rs7412) vs risk (rs429358) alleles (use alphagenome mcp)"
+"Use alphagenome to compare APOE protective (rs7412) vs risk (rs429358) alleles"
 ```
 **Result:** Protective: +0.0012 FC, Risk: -0.0023 FC (differential expression)
 
 #### compare_variants_same_gene
 Rank variants within a single gene.
 ```
-"Compare these 5 BRCA1 variants (use alphagenome mcp)"
+"Use alphagenome to compare these 5 BRCA1 variants"
 ```
 
 ### Modality-Specific Analysis
@@ -90,33 +90,33 @@ Rank variants within a single gene.
 #### predict_splice_impact
 Focus on splicing effects only.
 ```
-"Analyze splicing impact of chr6:41129252C>T (use alphagenome mcp)"
+"Use alphagenome to analyze splicing impact of chr6:41129252C>T"
 ```
 
 #### predict_expression_impact
 Focus on gene expression changes.
 ```
-"Show expression impact of rs744373 (use alphagenome mcp)"
+"Use alphagenome to show expression impact of rs744373"
 ```
 
 #### predict_tf_binding_impact
 Analyze transcription factor binding changes.
 ```
-"Show TF binding changes for rs429358 (use alphagenome mcp)"
+"Use alphagenome to show TF binding changes for rs429358"
 ```
 **Result:** TF binding change score: 24.0
 
 #### predict_chromatin_impact
 Assess chromatin accessibility changes.
 ```
-"Analyze chromatin impact of rs429358 (use alphagenome mcp)"
+"Use alphagenome to analyze chromatin impact of rs429358"
 ```
 **Result:** Low chromatin impact detected
 
 #### batch_modality_screen
 Screen variants for specific regulatory effects.
 ```
-"Screen 20 variants for splicing effects (use alphagenome mcp)"
+"Use alphagenome to screen 20 variants for splicing effects"
 ```
 **Result:** 2 variants with minimal splicing impact detected
 
@@ -125,13 +125,13 @@ Screen variants for specific regulatory effects.
 #### analyze_gwas_locus
 Fine-mapping and causal variant identification.
 ```
-"Analyze GWAS locus with 10 variants (use alphagenome mcp)"
+"Use alphagenome to analyze GWAS locus with 10 variants"
 ```
 
 #### batch_pathogenicity_filter
 Filter variants by pathogenicity threshold.
 ```
-"Filter these 100 variants for pathogenicity > 0.7 (use alphagenome mcp)"
+"Use alphagenome to filter these 100 variants for pathogenicity > 0.7"
 ```
 **Result:** 3 variants identified as pathogenic (all score 1.0)
 
@@ -140,14 +140,14 @@ Filter variants by pathogenicity threshold.
 #### annotate_regulatory_context
 Comprehensive regulatory context annotation.
 ```
-"Annotate regulatory context of rs429358 (use alphagenome mcp)"
+"Use alphagenome to annotate regulatory context of rs429358"
 ```
 **Result:** eQTL + TF binding site
 
 #### predict_allele_specific_effects
 Analyze allele-specific regulatory effects.
 ```
-"Show allele-specific effects for rs429358 (use alphagenome mcp)"
+"Use alphagenome to show allele-specific effects for rs429358"
 ```
 **Result:** Balanced expression (ASE ratio: 0.50)
 
@@ -156,14 +156,14 @@ Analyze allele-specific regulatory effects.
 #### generate_variant_report
 Generate comprehensive clinical report.
 ```
-"Generate a clinical report for rs429358 (use alphagenome mcp)"
+"Use alphagenome to generate a clinical report for rs429358"
 ```
 **Result:** Full report with pathogenicity classification and recommendations
 
 #### explain_variant_impact
 Human-readable impact explanation.
 ```
-"Explain the impact of rs429358 in simple terms (use alphagenome mcp)"
+"Use alphagenome to explain the impact of rs429358 in simple terms"
 ```
 **Result:** "This variant has HIGH regulatory impact"
 
@@ -227,12 +227,12 @@ Or use command-line argument:
 
 Test the installation in Claude Desktop:
 ```
-"Analyze chr19:44908684T>C (use alphagenome mcp)"
+"Use alphagenome to analyze chr19:44908684T>C"
 ```
 
 Expected: Detailed regulatory impact report within 30-60 seconds.
 
-**Note:** Always include `(use alphagenome mcp)` at the end of your queries to explicitly invoke the AlphaGenome MCP server.
+**Note:** Always include "use alphagenome" or "with alphagenome" in your queries to explicitly invoke the AlphaGenome MCP server.
 
 ## Usage Examples with Real Results
 
@@ -240,7 +240,7 @@ All examples below show actual API results from validated tests with Alzheimer's
 
 ### Pathogenicity Assessment
 ```
-User: "Assess the pathogenicity of rs429358 (use alphagenome mcp)"
+User: "Use alphagenome to assess the pathogenicity of rs429358"
 ```
 **Result:**
 ```json
@@ -259,7 +259,7 @@ User: "Assess the pathogenicity of rs429358 (use alphagenome mcp)"
 
 ### Tissue-Specific Analysis
 ```
-User: "Compare rs429358 effects in brain and liver (use alphagenome mcp)"
+User: "Use alphagenome to compare rs429358 effects in brain and liver"
 ```
 **Result:**
 ```json
@@ -278,7 +278,7 @@ User: "Compare rs429358 effects in brain and liver (use alphagenome mcp)"
 
 ### Variant Comparison
 ```
-User: "Compare APOE ε4 (rs429358) vs ε2 (rs7412) (use alphagenome mcp)"
+User: "Use alphagenome to compare APOE ε4 (rs429358) vs ε2 (rs7412)"
 ```
 **Result:**
 ```json
@@ -299,7 +299,7 @@ User: "Compare APOE ε4 (rs429358) vs ε2 (rs7412) (use alphagenome mcp)"
 
 ### TF Binding Analysis
 ```
-User: "Show TF binding changes for rs429358 (use alphagenome mcp)"
+User: "Use alphagenome to show TF binding changes for rs429358"
 ```
 **Result:**
 ```json
@@ -317,7 +317,7 @@ User: "Show TF binding changes for rs429358 (use alphagenome mcp)"
 
 ### Batch Pathogenicity Filtering
 ```
-User: "Filter these AD variants for pathogenicity > 0.5: rs429358, rs7412, rs75932628 (use alphagenome mcp)"
+User: "Use alphagenome to filter these AD variants for pathogenicity > 0.5: rs429358, rs7412, rs75932628"
 ```
 **Result:**
 ```json
@@ -334,7 +334,7 @@ User: "Filter these AD variants for pathogenicity > 0.5: rs429358, rs7412, rs759
 
 ### Allele Comparison
 ```
-User: "Compare T>C, T>G, T>A at chr19:44908684 (use alphagenome mcp)"
+User: "Use alphagenome to compare T>C, T>G, T>A at chr19:44908684"
 ```
 **Result:**
 ```json
@@ -350,7 +350,7 @@ User: "Compare T>C, T>G, T>A at chr19:44908684 (use alphagenome mcp)"
 
 ### Clinical Report Generation
 ```
-User: "Generate a clinical report for rs429358 (use alphagenome mcp)"
+User: "Use alphagenome to generate a clinical report for rs429358"
 ```
 **Result:**
 ```
@@ -369,7 +369,7 @@ Recommendation: Further clinical evaluation recommended
 
 ### Human-Readable Explanation
 ```
-User: "Explain rs429358 in simple terms (use alphagenome mcp)"
+User: "Use alphagenome to explain rs429358 in simple terms"
 ```
 **Result:**
 ```
