@@ -48,7 +48,7 @@ Compare variant effects across multiple tissues.
 ```
 "Use alphagenome to compare rs429358 effects in brain and liver"
 ```
-**Result:** Brain: -0.002 FC, Liver: +0.0007 FC (tissue-differential effects)
+**Result:** Brain expression: -0.0023, Liver expression: +0.0007 (tissue-differential effects)
 
 #### batch_tissue_comparison
 Multi-variant × multi-tissue analysis.
@@ -264,17 +264,22 @@ User: "Use alphagenome to compare rs429358 effects in brain and liver"
 **Result:**
 ```json
 {
-  "brain": {
-    "expression_fc": -0.002,
-    "impact_level": "high"
-  },
-  "liver": {
-    "expression_fc": 0.0007,
-    "impact_level": "high"
+  "variant": "chr19:44908684T>C",
+  "tissue_results": {
+    "brain": {
+      "expression_impact": -0.0023158475448830447,
+      "splice_impact": 0.026342391967773438,
+      "impact_level": "high"
+    },
+    "liver": {
+      "expression_impact": 0.0006634228698031664,
+      "splice_impact": 0.026342391967773438,
+      "impact_level": "high"
+    }
   }
 }
 ```
-**Interpretation:** Tissue-differential effects suggesting tissue-specific regulatory mechanisms.
+**Interpretation:** Tissue-differential effects suggesting tissue-specific regulatory mechanisms. Brain shows downregulation (-0.23%) while liver shows slight upregulation (+0.07%), demonstrating tissue-specific expression differences.
 
 ### Variant Comparison
 ```
@@ -284,16 +289,20 @@ User: "Use alphagenome to compare APOE ε4 (rs429358) vs ε2 (rs7412)"
 ```json
 {
   "variant1": {
-    "variant": "chr19:44908684T>C",
+    "id": "chr19:44908684T>C",
     "impact": "high",
-    "expression_fc": -0.0023
+    "expression_fc": -0.0023158475448830447,
+    "splice_delta": 0.026342391967773438
   },
   "variant2": {
-    "variant": "chr19:44908822C>T",
+    "id": "chr19:44908822C>T",
     "impact": "high",
-    "expression_fc": 0.0012
+    "expression_fc": 0.0012348050037761578,
+    "splice_delta": 0.017578125
   },
-  "more_severe": "variant1"
+  "comparison": {
+    "more_severe": "chr19:44908684T>C"
+  }
 }
 ```
 
@@ -339,14 +348,28 @@ User: "Use alphagenome to compare T>C, T>G, T>A at chr19:44908684"
 **Result:**
 ```json
 {
-  "alleles": [
-    {"alt": "C", "impact": "high", "expression_fc": -0.0023},
-    {"alt": "G", "impact": "high", "expression_fc": -0.0019},
-    {"alt": "A", "impact": "high", "expression_fc": -0.0021}
-  ]
+  "position": "chr19:44908684",
+  "reference": "T",
+  "allele_comparisons": {
+    "T>C": {
+      "impact_level": "high",
+      "expression_fc": -0.0023158475448830447,
+      "clinical_sig": "likely_pathogenic"
+    },
+    "T>G": {
+      "impact_level": "high",
+      "expression_fc": -0.003831571088997059,
+      "clinical_sig": "likely_pathogenic"
+    },
+    "T>A": {
+      "impact_level": "high",
+      "expression_fc": 0.003525237014542356,
+      "clinical_sig": "likely_pathogenic"
+    }
+  }
 }
 ```
-**Interpretation:** All three alternative alleles show high regulatory impact.
+**Interpretation:** All three alternative alleles show high regulatory impact with varying expression effects. T>A shows opposite direction (+0.35%) compared to T>C (-0.23%) and T>G (-0.38%).
 
 ### Clinical Report Generation
 ```
