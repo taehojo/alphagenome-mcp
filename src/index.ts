@@ -128,21 +128,6 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
         };
       }
 
-      case 'analyze_region': {
-        const params = validateInput(regionAnalysisSchema, args) as RegionAnalysisParams;
-        const result = await getClient().analyzeRegion(params);
-        const formatted = formatRegionResult(result);
-
-        return {
-          content: [
-            {
-              type: 'text',
-              text: formatted,
-            },
-          ],
-        };
-      }
-
       case 'batch_score_variants': {
         const params = validateInput(batchScoreSchema, args) as BatchScoreParams;
         const result = await getClient().batchScore(params);
@@ -155,6 +140,141 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
               text: formatted,
             },
           ],
+        };
+      }
+
+      case 'assess_pathogenicity': {
+        const params = validateInput(variantPredictionSchema, args) as VariantPredictionParams;
+        const result = await getClient().assessPathogenicity(params);
+        return {
+          content: [{ type: 'text', text: JSON.stringify(result, null, 2) }],
+        };
+      }
+
+      case 'predict_tissue_specific': {
+        const result = await getClient().predictTissueSpecific(args);
+        return {
+          content: [{ type: 'text', text: JSON.stringify(result, null, 2) }],
+        };
+      }
+
+      case 'compare_variants': {
+        const result = await getClient().compareVariants(args);
+        return {
+          content: [{ type: 'text', text: JSON.stringify(result, null, 2) }],
+        };
+      }
+
+      case 'predict_splice_impact': {
+        const params = validateInput(variantPredictionSchema, args) as VariantPredictionParams;
+        const result = await getClient().predictSpliceImpact(params);
+        return {
+          content: [{ type: 'text', text: JSON.stringify(result, null, 2) }],
+        };
+      }
+
+      case 'predict_expression_impact': {
+        const params = validateInput(variantPredictionSchema, args) as VariantPredictionParams;
+        const result = await getClient().predictExpressionImpact(params);
+        return {
+          content: [{ type: 'text', text: JSON.stringify(result, null, 2) }],
+        };
+      }
+
+      case 'analyze_gwas_locus': {
+        const result = await getClient().analyzeGwasLocus(args);
+        return {
+          content: [{ type: 'text', text: JSON.stringify(result, null, 2) }],
+        };
+      }
+
+      case 'compare_alleles': {
+        const result = await getClient().compareAlleles(args);
+        return {
+          content: [{ type: 'text', text: JSON.stringify(result, null, 2) }],
+        };
+      }
+
+      case 'batch_tissue_comparison': {
+        const result = await getClient().batchTissueComparison(args);
+        return {
+          content: [{ type: 'text', text: JSON.stringify(result, null, 2) }],
+        };
+      }
+
+      case 'predict_tf_binding_impact': {
+        const params = validateInput(variantPredictionSchema, args) as VariantPredictionParams;
+        const result = await getClient().predictTfBindingImpact(params);
+        return {
+          content: [{ type: 'text', text: JSON.stringify(result, null, 2) }],
+        };
+      }
+
+      case 'predict_chromatin_impact': {
+        const params = validateInput(variantPredictionSchema, args) as VariantPredictionParams;
+        const result = await getClient().predictChromatinImpact(params);
+        return {
+          content: [{ type: 'text', text: JSON.stringify(result, null, 2) }],
+        };
+      }
+
+      case 'compare_protective_risk': {
+        const result = await getClient().compareProtectiveRisk(args);
+        return {
+          content: [{ type: 'text', text: JSON.stringify(result, null, 2) }],
+        };
+      }
+
+      case 'batch_pathogenicity_filter': {
+        const result = await getClient().batchPathogenicityFilter(args);
+        return {
+          content: [{ type: 'text', text: JSON.stringify(result, null, 2) }],
+        };
+      }
+
+      case 'compare_variants_same_gene': {
+        const result = await getClient().compareVariantsSameGene(args);
+        return {
+          content: [{ type: 'text', text: JSON.stringify(result, null, 2) }],
+        };
+      }
+
+      case 'predict_allele_specific_effects': {
+        const params = validateInput(variantPredictionSchema, args) as VariantPredictionParams;
+        const result = await getClient().predictAlleleSpecificEffects(params);
+        return {
+          content: [{ type: 'text', text: JSON.stringify(result, null, 2) }],
+        };
+      }
+
+      case 'annotate_regulatory_context': {
+        const params = validateInput(variantPredictionSchema, args) as VariantPredictionParams;
+        const result = await getClient().annotateRegulatoryContext(params);
+        return {
+          content: [{ type: 'text', text: JSON.stringify(result, null, 2) }],
+        };
+      }
+
+      case 'batch_modality_screen': {
+        const result = await getClient().batchModalityScreen(args);
+        return {
+          content: [{ type: 'text', text: JSON.stringify(result, null, 2) }],
+        };
+      }
+
+      case 'generate_variant_report': {
+        const params = validateInput(variantPredictionSchema, args) as VariantPredictionParams;
+        const result = await getClient().generateVariantReport(params);
+        return {
+          content: [{ type: 'text', text: JSON.stringify(result, null, 2) }],
+        };
+      }
+
+      case 'explain_variant_impact': {
+        const params = validateInput(variantPredictionSchema, args) as VariantPredictionParams;
+        const result = await getClient().explainVariantImpact(params);
+        return {
+          content: [{ type: 'text', text: JSON.stringify(result, null, 2) }],
         };
       }
 
