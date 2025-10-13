@@ -54,8 +54,9 @@
 
 \author{
 Taeho Jo\\
-\textit{AI Lab, Indiana University}\\
-\texttt{taehjo@gmail.com}
+\textit{Department of Radiology and Imaging Sciences}\\
+\textit{Indiana University School of Medicine}\\
+\texttt{tjo@iu.edu}
 }
 
 \date{\today}
@@ -65,8 +66,10 @@ Taeho Jo\\
 \maketitle
 
 \begin{abstract}
-The integration of artificial intelligence into genomic analysis workflows remains technically challenging, requiring substantial programming expertise and limiting accessibility for clinical researchers and geneticists. We present AlphaGenome MCP Server, a Model Context Protocol (MCP) implementation that provides natural language access to Google DeepMind's AlphaGenome variant effect prediction API. The server enables researchers to query genetic variants using simple natural language commands, reducing code complexity by approximately 40$\times$ compared to traditional API usage. We implemented 20 specialized analysis tools as lightweight wrappers around a single API endpoint, demonstrating how wrapper architecture reduces implementation complexity while providing diverse analytical capabilities. All tools call the same underlying \texttt{predict\_variant()} API but differ in parameter configuration and output formatting. Validation tests with Alzheimer's disease-associated variants demonstrated successful execution across pathogenicity assessment, tissue-specific analysis, transcription factor binding analysis, chromatin impact assessment, protective vs. risk allele comparison, batch pathogenicity filtering, and comprehensive clinical report generation. The system successfully performed complex multi-variant and multi-tissue analyses, including direct comparison of APOE risk alleles and tissue-specific effect profiling. This work demonstrates how wrapper-based MCP implementations can lower technical barriers to advanced genomics tools while maintaining full access to underlying AI model capabilities. The system is available as open-source software at \url{https://github.com/taehojo/alphagenome-mcp}.
+The integration of artificial intelligence into genomic analysis workflows remains technically challenging, requiring substantial programming expertise and limiting accessibility for clinical researchers and geneticists. We present AlphaGenome MCP Server, a Model Context Protocol (MCP) implementation that provides natural language access to Google DeepMind's AlphaGenome variant effect prediction API. The server enables researchers to query genetic variants using simple natural language commands, reducing per-query code complexity by approximately 40$\times$ compared to traditional API usage. We implemented 20 specialized analysis tools as lightweight wrappers around a single API endpoint, demonstrating how wrapper architecture reduces implementation complexity while providing diverse analytical capabilities. All tools call the same underlying \texttt{predict\_variant()} API but differ in parameter configuration and output formatting. Validation tests with Alzheimer's disease-associated variants demonstrated successful execution across pathogenicity assessment, tissue-specific analysis, transcription factor binding analysis, chromatin impact assessment, protective vs. risk allele comparison, batch pathogenicity filtering, and comprehensive clinical report generation. The system successfully performed complex multi-variant and multi-tissue analyses, including direct comparison of APOE risk alleles and tissue-specific effect profiling. This work demonstrates how wrapper-based MCP implementations can lower technical barriers to advanced genomics tools while maintaining full access to underlying AI model capabilities. The system is available as open-source software at \url{https://github.com/taehojo/alphagenome-mcp}.
 \end{abstract}
+
+\noindent\textbf{Keywords:} natural language interface, genomic variant analysis, Model Context Protocol, AlphaGenome, wrapper architecture, regulatory genomics
 
 \section{Introduction}
 
@@ -359,7 +362,7 @@ Time & $\sim$8 sec & $\sim$8 sec \\
 
 \subsection*{Technical Achievement and Contributions}
 
-This proof-of-concept successfully demonstrates that Model Context Protocol can bridge the gap between natural language interfaces and complex genomic analysis APIs. The implementation achieves three key technical objectives: (1) natural language query translation into AlphaGenome API calls without programming requirements, (2) interactive response times suitable for research workflows (8 seconds per variant, 25 seconds for batch processing of four variants), and (3) approximately 40× reduction in code complexity compared to traditional API usage.
+This proof-of-concept successfully demonstrates that Model Context Protocol can bridge the gap between natural language interfaces and complex genomic analysis APIs. The implementation achieves three key technical objectives: (1) natural language query translation into AlphaGenome API calls without programming requirements, (2) interactive response times suitable for research workflows (8 seconds per variant, 25 seconds for batch processing of four variants), and (3) approximately 40× reduction in per-query code complexity compared to traditional API usage (from ~40 lines of Python code to a single natural language query). This reduction measures user-facing code complexity per analysis, not total system implementation. The MCP server itself contains substantial implementation code, but this complexity is abstracted away from end users.
 
 The primary contribution is demonstrating a fundamentally new interaction paradigm for AI genomics tools. The MCP architecture provides unique advantages over both traditional API programming and web-based interfaces. First, conversational error recovery enables users to correct mistakes through natural language dialogue rather than debugging code. As demonstrated in Table~\ref{tab:error_recovery}, when a user specified an invalid variant, the system provided a human-readable error message suggesting the correct format, and the user could immediately rephrase their query conversationally. Second, the system eliminates entire classes of programming errors including incorrect interval resizing, malformed variant objects, and authentication failures. Third, the architecture seamlessly integrates with AI assistants that can interpret ambiguous queries, suggest analyses, and explain results. Fourth, researchers can focus on biological questions rather than API documentation and code debugging.
 
@@ -381,22 +384,32 @@ We present AlphaGenome MCP Server, an MCP implementation providing natural langu
 
 \textbf{Source Code:} \url{https://github.com/taehojo/alphagenome-mcp}
 
-\textbf{npm Package:} \texttt{npm install @jolab/alphagenome-mcp}
+\textbf{npm Package:} \texttt{npm install @jolab/alphagenome-mcp} (version 0.2.0)
 
-\textbf{Installation:} \texttt{claude mcp add alphagenome -- npx -y @jolab/alphagenome-mcp --api-key YOUR\_KEY}
+\textbf{Installation:} \texttt{claude mcp add alphagenome -- npx -y @jolab/alphagenome-mcp@0.2.0 --api-key YOUR\_KEY}
 
 \textbf{License:} MIT License
+
+\textbf{Note:} This paper describes version 0.2.0 with 20 wrapper tools. Future versions may include additional capabilities.
 
 \section*{Acknowledgments}
 
 We thank Google DeepMind for developing and providing access to the AlphaGenome API, and Anthropic for developing the Model Context Protocol specification and Claude Desktop implementation.
+
+\section*{Funding}
+
+This research received no specific grant from any funding agency in the public, commercial, or not-for-profit sectors.
+
+\section*{Competing Interests}
+
+The author declares no competing interests.
 
 \begin{thebibliography}{9}
 
 \bibitem{alphagenome2025}
 Avsec, Ž., Latysheva, N., Cheng, J., et al. (2025).
 \textit{AlphaGenome: Unified prediction of variant effects}.
-bioRxiv. doi: 10.1101/2025.06.25.661532
+bioRxiv. doi: 10.1101/2025.06.27.600757
 
 \bibitem{avsec2021}
 Avsec, Ž., Agarwal, V., Visentin, D., et al. (2021).
