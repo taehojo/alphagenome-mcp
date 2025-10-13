@@ -173,7 +173,7 @@ Human-readable impact explanation.
 
 - Node.js ≥18.0.0
 - Python ≥3.8 with `alphagenome` and `numpy`
-- AlphaGenome API key ([request here](https://deepmind.google/discover/blog/alphagenome/))
+- AlphaGenome API key
 
 ### Quick Start
 
