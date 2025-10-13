@@ -1,6 +1,6 @@
 {
   "name": "@jolab/alphagenome-mcp",
-  "version": "0.1.5",
+  "version": "0.2.0",
   "description": "MCP server integrating Google DeepMind's AlphaGenome for AI-powered genomic variant analysis with Claude Desktop",
   "type": "module",
   "main": "build/index.js",
