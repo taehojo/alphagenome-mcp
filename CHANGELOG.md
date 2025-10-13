@@ -7,6 +7,44 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.2.0] - 2025-10-13
+
+### Added
+- 10 new Group C wrapper tools (total 20 tools now)
+  - predict_tf_binding_impact: Focus on transcription factor binding effects
+  - predict_chromatin_impact: Assess chromatin accessibility changes
+  - compare_protective_risk: Compare protective vs risk alleles directly
+  - batch_pathogenicity_filter: Filter variants by pathogenicity threshold
+  - compare_variants_same_gene: Rank variants within a single gene
+  - predict_allele_specific_effects: Analyze allele-specific regulatory effects
+  - annotate_regulatory_context: Comprehensive regulatory context annotation
+  - batch_modality_screen: Screen variants across specific regulatory modalities
+  - generate_variant_report: Generate comprehensive clinical report
+  - explain_variant_impact: Human-readable impact explanation
+
+### Changed
+- README completely restructured to emphasize wrapper architecture
+  - Removed artificial Group A/B/C classification
+  - Organized tools by 7 functional categories
+  - All 20 tools now documented as lightweight wrappers around single predict_variant() API
+- Updated all query examples to use natural English ("Use alphagenome to...")
+- Removed parentheses from query examples for better readability
+- Fixed all README examples to show actual API output (not simplified versions)
+  - Tissue-specific analysis now shows real field names and structure
+  - Variant comparison shows actual output format with splice_delta
+  - Allele comparison shows actual allele_comparisons object structure
+
+### Fixed
+- batch_modality_screen OutputType serialization error
+- batch_modality_screen JSON serialization of OutputType enums
+- Documentation now matches actual API responses (truthfulness principle)
+
+### Documentation
+- Added paper.tex and paper.pdf with comprehensive technical documentation
+- Added "Wrapper Versatility Demonstration" section showing same variant analyzed 6 different ways
+- Enhanced interpretations with percentage explanations
+- All examples verified with real AlphaGenome API using Alzheimer's disease variants
+
 ## [0.1.5] - 2025-10-12
 
 ### Verified
