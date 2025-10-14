@@ -1,9 +1,18 @@
 # AlphaGenome MCP Server
 
+<p align="center">
+  <a href="#english">English</a> •
+  <a href="#korean">한국어</a>
+</p>
+
 [![npm version](https://badge.fury.io/js/%40jolab%2Falphagenome-mcp.svg)](https://www.npmjs.com/package/@jolab/alphagenome-mcp)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 
+<div id="english">
+
 A Model Context Protocol (MCP) server that provides natural language access to Google DeepMind's AlphaGenome variant effect prediction API.
+
+> **한국어 요약:** Google DeepMind AlphaGenome API를 Claude Desktop에서 자연어로 사용할 수 있게 해주는 MCP 서버입니다. 유전체 변이의 조절 효과, 병원성, 조직별 영향을 분석할 수 있습니다. [한국어 전체 문서 보기](#korean)
 
 ## Overview
 
@@ -15,20 +24,32 @@ AlphaGenome MCP Server provides a natural language interface to Google DeepMind'
 - **Comprehensive Analysis**: Access all AlphaGenome modalities (RNA-seq, ChIP-seq, ATAC-seq, splicing, etc.)
 - **Research Tool**: Designed for exploratory genomics research and variant prioritization
 
-## Quick Start
+## ⚡ Quick Start
 
-```bash
-# Install Python dependencies
-pip install alphagenome numpy
+**Get started in 3 minutes:**
 
-# Add to Claude Desktop
-claude mcp add alphagenome -- npx -y @jolab/alphagenome-mcp@latest --api-key YOUR_API_KEY
-```
+1. **Install dependencies**
+   ```bash
+   pip install alphagenome numpy
+   ```
 
-Test in Claude Desktop:
-```
-"Use alphagenome to analyze chr19:44908684T>C"
-```
+2. **Add to Claude Desktop**
+   ```bash
+   claude mcp add alphagenome -- npx -y @jolab/alphagenome-mcp@latest --api-key YOUR_API_KEY
+   ```
+
+3. **Run your first query**
+
+   Restart Claude Desktop and try:
+   ```
+   "Use alphagenome to analyze chr19:44908684T>C"
+   ```
+
+4. **View results** (takes 30-60 seconds)
+
+   You'll get a detailed report with pathogenicity scores, expression impacts, and splicing effects.
+
+**Want more?** Check out [20 specialized tools](#available-tools) below.
 
 ## Architecture
 
@@ -563,8 +584,246 @@ See [LICENSE](LICENSE) file for details.
 
 - **npm Package**: https://www.npmjs.com/package/@jolab/alphagenome-mcp
 - **GitHub Repository**: https://github.com/taehojo/alphagenome-mcp
-- **Issue Tracker**: https://github.com/taehojo/alphagenome-mcp/issues
 - **AlphaGenome**: https://deepmind.google/discover/blog/alphagenome/
 - **Model Context Protocol**: https://modelcontextprotocol.io/
 - **Claude Desktop**: https://claude.ai/download
 
+</div>
+
+---
+
+<div id="korean">
+
+# AlphaGenome MCP 서버
+
+> Google DeepMind의 AlphaGenome을 자연어로 사용할 수 있게 해주는 MCP 서버
+
+[![npm version](https://badge.fury.io/js/%40jolab%2Falphagenome-mcp.svg)](https://www.npmjs.com/package/@jolab/alphagenome-mcp)
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
+
+## 개요
+
+유전체 변이(genomic variant)의 조절 효과를 AI로 예측하는 AlphaGenome API를 Claude Desktop에서 자연어로 사용할 수 있습니다. Python 코드를 작성하지 않고 평범한 한국어나 영어로 변이를 분석할 수 있으며, 탐색적 분석과 빠른 프로토타이핑에 최적화되어 있습니다.
+
+## 주요 기능
+
+- 🧬 **변이 효과 예측**: 11가지 분자 양식(RNA-seq, ChIP-seq, ATAC-seq, 스플라이싱 등)에서 조절 영향 분석
+- 🏥 **병원성 평가**: 임상 점수 산출 및 필터링
+- 🔬 **조직별 분석**: 뇌, 간, 심장 등 여러 조직에서의 효과 프로파일링
+- 📊 **배치 처리**: 대용량 변이 우선순위 지정
+- 💬 **자연어 인터페이스**: 코딩 없이 rsID나 염색체 좌표로 쿼리
+- 🔧 **20가지 전문 도구**: 단일 API를 감싸는 래퍼 아키텍처
+
+## ⚡ 빠른 시작
+
+**3분 안에 시작하기:**
+
+1. **Python 패키지 설치**
+   ```bash
+   pip install alphagenome numpy
+   ```
+
+2. **Claude Desktop에 추가**
+   ```bash
+   claude mcp add alphagenome -- npx -y @jolab/alphagenome-mcp@latest --api-key YOUR_API_KEY
+   ```
+
+3. **첫 번째 쿼리 실행**
+
+   Claude Desktop을 재시작하고 다음을 시도하세요:
+   ```
+   "Use alphagenome to analyze chr19:44908684T>C"
+   ```
+   또는 한국어로:
+   ```
+   "alphagenome을 사용해서 chr19:44908684T>C를 분석해줘"
+   ```
+
+4. **결과 확인** (30-60초 소요)
+
+   병원성 점수, 발현 영향, 스플라이싱 효과가 포함된 상세 보고서가 생성됩니다.
+
+**더 알아보기:** [20가지 전문 도구](#사용-예시) 확인
+
+## 시스템 구조
+
+```
+┌─────────────────────────┐
+│  연구자                  │
+└───────────┬─────────────┘
+            │ 자연어 쿼리
+            ↓
+┌─────────────────────────┐
+│  Claude Desktop         │ ← MCP 클라이언트
+└───────────┬─────────────┘
+            │ JSON-RPC (stdio)
+            ↓
+┌─────────────────────────┐
+│  MCP 서버 (TypeScript)  │ ← 도구 라우팅, 검증
+└───────────┬─────────────┘
+            │ subprocess
+            ↓
+┌─────────────────────────┐
+│  Python 브리지          │ ← AlphaGenome SDK 인터페이스
+└───────────┬─────────────┘
+            │ HTTP
+            ↓
+┌─────────────────────────┐
+│  AlphaGenome API        │ ← Google DeepMind 서비스
+└─────────────────────────┘
+```
+
+## 설치 방법
+
+### 요구사항
+
+- Node.js ≥18.0.0
+- Python ≥3.8
+- AlphaGenome API 키 (Google DeepMind에서 발급)
+- Python 패키지: `alphagenome`, `numpy`
+
+### 설치
+
+**1. Python 패키지 설치:**
+```bash
+pip install alphagenome numpy
+```
+
+**2. MCP 클라이언트 설정:**
+
+<details>
+<summary><b>Claude Desktop</b></summary>
+
+**권장 방법:**
+```bash
+claude mcp add alphagenome -- npx -y @jolab/alphagenome-mcp@latest --api-key YOUR_API_KEY
+```
+
+**수동 설정 (`~/.config/claude/claude_desktop_config.json`):**
+```json
+{
+  "mcpServers": {
+    "alphagenome": {
+      "command": "npx",
+      "args": ["-y", "@jolab/alphagenome-mcp@latest", "--api-key", "YOUR_API_KEY"]
+    }
+  }
+}
+```
+
+**테스트:**
+```
+"alphagenome으로 chr19:44908684T>C를 분석해줘"
+```
+</details>
+
+<details>
+<summary><b>Claude Code</b></summary>
+
+`~/.config/claude/claude_code_config.json`에 추가:
+```json
+{
+  "mcpServers": {
+    "alphagenome": {
+      "command": "npx",
+      "args": ["-y", "@jolab/alphagenome-mcp@latest", "--api-key", "YOUR_API_KEY"]
+    }
+  }
+}
+```
+</details>
+
+<details>
+<summary><b>Cursor</b></summary>
+
+프로젝트 루트의 `.cursor/mcp.json`에 추가:
+```json
+{
+  "mcpServers": {
+    "alphagenome": {
+      "command": "npx",
+      "args": ["-y", "@jolab/alphagenome-mcp@latest", "--api-key", "YOUR_API_KEY"]
+    }
+  }
+}
+```
+</details>
+
+## 사용 예시
+
+### 병원성 평가
+```
+"rs429358의 병원성을 평가해줘"
+```
+
+**결과:** 병원성 점수 1.0, 발현 영향 0.0023, 스플라이싱 영향 0.0263
+
+### 조직별 분석
+```
+"rs429358의 뇌와 간에서의 효과를 비교해줘"
+```
+
+**결과:** 뇌에서 -0.23% 하향조절, 간에서 +0.07% 상향조절
+
+### 변이 비교
+```
+"APOE ε4 (rs429358)와 ε2 (rs7412)를 비교해줘"
+```
+
+**결과:** ε4가 더 심각한 영향 (발현 변화 -0.0023 vs +0.0012)
+
+### 스플라이싱 영향
+```
+"chr6:41129252C>T의 스플라이싱 영향을 분석해줘"
+```
+
+### 배치 처리
+```
+"이 10개 변이를 병원성 점수로 정렬해줘"
+```
+
+## 성능
+
+- **첫 호출**: 30-60초 (초기화), 이후 호출: 변이당 8-15초
+- **분석 양식**: 11가지 (RNA-seq, CAGE, PRO-cap, 스플라이스 사이트, DNase, ATAC, 히스톤 변형, 전사인자 결합, 접촉 맵)
+
+## 인용
+
+이 소프트웨어를 연구에 사용하신다면 다음과 같이 인용해주세요:
+
+```bibtex
+@software{jo2025alphagenome_mcp,
+  author = {Jo, Taeho},
+  title = {AlphaGenome MCP Server},
+  year = {2025},
+  url = {https://github.com/taehojo/alphagenome-mcp},
+  version = {0.2.0}
+}
+```
+
+AlphaGenome 모델:
+```bibtex
+@article{avsec2025alphagenome,
+  title = {AlphaGenome: advancing regulatory variant effect prediction with a unified DNA sequence model},
+  author = {Avsec, Žiga and Latysheva, Natasha and Cheng, Jun and others},
+  journal = {bioRxiv},
+  year = {2025}
+}
+```
+
+## 상세 문서
+
+전체 도구 목록, 상세 사용 예제, API 응답 형식, 개발 가이드는 [영문 문서](#english)를 참고하세요.
+
+## 라이선스
+
+MIT License - Copyright (c) 2025 Taeho Jo
+
+## 링크
+
+- **npm 패키지**: https://www.npmjs.com/package/@jolab/alphagenome-mcp
+- **GitHub 저장소**: https://github.com/taehojo/alphagenome-mcp
+- **AlphaGenome**: https://deepmind.google/discover/blog/alphagenome/
+- **Model Context Protocol**: https://modelcontextprotocol.io/
+
+</div>
