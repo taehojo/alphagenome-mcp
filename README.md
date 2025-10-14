@@ -12,7 +12,7 @@
 
 A Model Context Protocol (MCP) server that provides natural language access to Google DeepMind's AlphaGenome variant effect prediction API.
 
-> **한국어 요약:** Google DeepMind AlphaGenome API를 Claude Desktop에서 자연어로 사용할 수 있게 해주는 MCP 서버입니다. 유전체 변이의 조절 효과, 병원성, 조직별 영향을 분석할 수 있습니다. [한국어 전체 문서 보기](#korean)
+> **한국어 요약:** Google DeepMind AlphaGenome API를 MCP 클라이언트(Claude Desktop, Claude Code, Gemini CLI, Cursor, Windsurf 등)에서 자연어로 사용할 수 있게 해주는 MCP 서버입니다. 유전체 변이의 조절 효과, 병원성, 조직별 영향을 분석할 수 있습니다. [한국어 전체 문서 보기](#korean)
 
 ## Overview
 
@@ -33,14 +33,16 @@ AlphaGenome MCP Server provides a natural language interface to Google DeepMind'
    pip install alphagenome numpy
    ```
 
-2. **Add to Claude Desktop**
+2. **Add to your MCP client** (supports Claude Desktop, Claude Code, Gemini CLI, Cursor, Windsurf)
    ```bash
    claude mcp add alphagenome -- npx -y @jolab/alphagenome-mcp@latest --api-key YOUR_API_KEY
    ```
 
+   See [Installation](#installation) for other MCP clients.
+
 3. **Run your first query**
 
-   Restart Claude Desktop and try:
+   Restart your MCP client and try:
    ```
    "Use alphagenome to analyze chr19:44908684T>C"
    ```
@@ -603,7 +605,7 @@ See [LICENSE](LICENSE) file for details.
 
 ## 개요
 
-유전체 변이(genomic variant)의 조절 효과를 AI로 예측하는 AlphaGenome API를 Claude Desktop에서 자연어로 사용할 수 있습니다. Python 코드를 작성하지 않고 평범한 한국어나 영어로 변이를 분석할 수 있으며, 탐색적 분석과 빠른 프로토타이핑에 최적화되어 있습니다.
+유전체 변이(genomic variant)의 조절 효과를 AI로 예측하는 AlphaGenome API를 MCP 클라이언트(Claude Desktop, Claude Code, Gemini CLI, Cursor, Windsurf 등)에서 자연어로 사용할 수 있습니다. Python 코드를 작성하지 않고 평범한 한국어나 영어로 변이를 분석할 수 있으며, 탐색적 분석과 빠른 프로토타이핑에 최적화되어 있습니다.
 
 ## 주요 기능
 
@@ -623,14 +625,16 @@ See [LICENSE](LICENSE) file for details.
    pip install alphagenome numpy
    ```
 
-2. **Claude Desktop에 추가**
+2. **MCP 클라이언트에 추가** (Claude Desktop, Claude Code, Gemini CLI, Cursor, Windsurf 지원)
    ```bash
    claude mcp add alphagenome -- npx -y @jolab/alphagenome-mcp@latest --api-key YOUR_API_KEY
    ```
 
+   다른 MCP 클라이언트는 [설치 방법](#설치-방법) 참고
+
 3. **첫 번째 쿼리 실행**
 
-   Claude Desktop을 재시작하고 다음을 시도하세요:
+   MCP 클라이언트를 재시작하고 다음을 시도하세요:
    ```
    "Use alphagenome to analyze chr19:44908684T>C"
    ```
