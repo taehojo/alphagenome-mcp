@@ -7,7 +7,7 @@ A Model Context Protocol (MCP) server that provides natural language access to G
 
 ## Overview
 
-The integration of AI into genomic analysis workflows remains technically challenging, requiring programming expertise and limiting accessibility for clinical researchers and geneticists. AlphaGenome MCP Server bridges this gap by enabling natural language queries to AlphaGenome's regulatory genomics predictions.
+AlphaGenome MCP Server provides a natural language interface to Google DeepMind's AlphaGenome variant effect prediction API. Query genomic variants using plain English instead of writing Python code, designed for exploratory analysis and rapid prototyping.
 
 **Key Features:**
 - **Natural Language Interface**: Query variants using plain English instead of writing code
