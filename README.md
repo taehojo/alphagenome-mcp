@@ -486,55 +486,8 @@ Recommendation: Further clinical evaluation recommended
 
 ## Performance
 
-- **First call**: 30-60 seconds (initialization)
-- **Subsequent calls**: 8-15 seconds per variant
-- **Batch processing**: ~7 seconds per variant
-- **Recommended**: <100 variants per session for interactive use
+- **First call**: 30-60 seconds (initialization), subsequent calls: 8-15 seconds per variant
 - **Modalities**: 11 (RNA-seq, CAGE, PRO-cap, splice sites, DNase, ATAC, histone mods, TF binding, contact maps)
-- **Resolution**: Single base-pair for most modalities
-
-## Limitations
-
-### Technical Limitations
-- **Internet required**: Active connection and API access needed
-- **Variant types**: Single nucleotide variants (SNVs) only; InDels and structural variants not fully supported
-- **Genomic distance**: Accuracy decreases for regulatory elements >100kb from transcription start sites
-- **Species**: Human (GRCh38) and mouse genomes only
-- **API dependency**: Performance depends on AlphaGenome API availability
-
-### Research vs Clinical Use
-- **Research tool only**: Not validated for clinical diagnostics
-- **No clinical validation**: Predictions require validation by qualified professionals
-- **Not FDA approved**: Should not be used for clinical diagnosis or treatment decisions
-- **Sample size**: Current demonstrations use 4 test variants (minimal functional verification)
-- **No accuracy benchmarking**: Comparative studies with other tools not performed
-
-### Interface Limitations
-- **API key required**: Must obtain AlphaGenome API access from Google DeepMind
-- **MCP client needed**: Requires Claude Desktop or compatible MCP client
-- **Natural language variability**: Query interpretation may vary
-- **Error recovery**: While conversational error recovery is possible, some errors require API-level debugging
-
-### Known Issues
-- Response time variability depending on variant complexity
-- Memory usage increases with large batch operations
-- Tissue types limited to UBERON ontology terms
-- No support for custom genome assemblies
-
-## Use Cases
-
-### Research Applications (Appropriate)
-- Post-GWAS variant prioritization
-- Exploratory functional genomics
-- Regulatory element characterization
-- Variant effect hypothesis generation
-- Educational demonstrations
-
-### Clinical Applications (Not Appropriate)
-- ❌ Clinical diagnosis
-- ❌ Treatment decisions
-- ❌ Genetic counseling without additional validation
-- ❌ Population screening
 
 ## Development
 
