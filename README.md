@@ -242,39 +242,124 @@ Human-readable explanation.
 
 ### Setup
 
-1. **Install Python dependencies:**
+**1. Install Python dependencies:**
 ```bash
 pip install alphagenome numpy
 ```
 
-2. **Install via npm (recommended):**
+**2. Configure for your MCP client:**
+
+<details>
+<summary><b>Claude Desktop</b></summary>
+
+**Recommended method:**
 ```bash
 claude mcp add alphagenome -- npx -y @jolab/alphagenome-mcp@latest --api-key YOUR_API_KEY
 ```
 
-3. **Or configure manually:**
-
-Add to `claude_desktop_config.json`:
+**Or manually add to `~/.config/claude/claude_desktop_config.json`:**
 ```json
 {
   "mcpServers": {
     "alphagenome": {
       "command": "npx",
-      "args": ["-y", "@jolab/alphagenome-mcp@latest"],
-      "env": {
-        "ALPHAGENOME_API_KEY": "your-api-key-here"
-      }
+      "args": ["-y", "@jolab/alphagenome-mcp@latest", "--api-key", "YOUR_API_KEY"]
     }
   }
 }
 ```
 
-### Verification
-
-Test in Claude Desktop:
+**Test:**
 ```
 "Use alphagenome to analyze chr19:44908684T>C"
 ```
+</details>
+
+<details>
+<summary><b>Claude Code</b></summary>
+
+Add to `~/.config/claude/claude_code_config.json`:
+```json
+{
+  "mcpServers": {
+    "alphagenome": {
+      "command": "npx",
+      "args": ["-y", "@jolab/alphagenome-mcp@latest", "--api-key", "YOUR_API_KEY"]
+    }
+  }
+}
+```
+
+**Test:**
+```
+"Use alphagenome to analyze chr19:44908684T>C"
+```
+</details>
+
+<details>
+<summary><b>Gemini CLI</b></summary>
+
+Add to `~/.gemini/settings.json`:
+```json
+{
+  "mcpServers": {
+    "alphagenome": {
+      "command": "npx",
+      "args": ["-y", "@jolab/alphagenome-mcp@latest", "--api-key", "YOUR_API_KEY"]
+    }
+  }
+}
+```
+
+**Test:**
+```
+"Use alphagenome to analyze chr19:44908684T>C"
+```
+</details>
+
+<details>
+<summary><b>Cursor</b></summary>
+
+Add to `.cursor/mcp.json` in your project root:
+```json
+{
+  "mcpServers": {
+    "alphagenome": {
+      "command": "npx",
+      "args": ["-y", "@jolab/alphagenome-mcp@latest", "--api-key", "YOUR_API_KEY"]
+    }
+  }
+}
+```
+
+**Test:**
+```
+"Use alphagenome to analyze chr19:44908684T>C"
+```
+</details>
+
+<details>
+<summary><b>Windsurf</b></summary>
+
+Add to your Windsurf settings JSON:
+```json
+{
+  "mcpServers": {
+    "alphagenome": {
+      "command": "npx",
+      "args": ["-y", "@jolab/alphagenome-mcp@latest", "--api-key", "YOUR_API_KEY"]
+    }
+  }
+}
+```
+
+**Test:**
+```
+"Use alphagenome to analyze chr19:44908684T>C"
+```
+</details>
+
+### Verification
 
 Expected: Detailed regulatory impact report within 30-60 seconds.
 
