@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed
+- README is English only. The Korean half duplicated the English one and doubled its length; it is removed, together with the language switcher
+- README opens with the how-it-works diagram (`docs/media/how-it-works.png`) and a three-minute demo video, and links to a longer illustrated explainer of the research workflow (`docs/media/explainer.png`). `docs/` is not part of the npm package
+
 ## [0.3.0] - 2026-09-21
 
 AlphaGenome as a tool for Claude agents: the precomputed AlphaGenome Atlas for single-nucleotide variants, live inference for indels and other variants the Atlas cannot precompute, chosen automatically, with the source stated on every result.
