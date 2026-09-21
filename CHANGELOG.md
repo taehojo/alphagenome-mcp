@@ -45,12 +45,14 @@ Live inference no longer classifies variants, and the output of every live tool 
 ### Changed
 - README reframed around the agent use case; installation now recommends passing the key through `env` rather than `--api-key`, documents `claude mcp add` for Claude Code and the Claude Desktop config paths for macOS and Windows
 - Python 3.10 or newer is required, as the `alphagenome` package requires it (the README said 3.8)
+- Installation guide: where to get a key, a virtual-environment setup with `ALPHAGENOME_PYTHON` for macOS, Linux and Windows, a verification step, and a troubleshooting table keyed on the server's error messages. Live inference timings updated to the measured 3-10 seconds (they said 30-60)
+- The publish workflow runs the unit tests before publishing; its last step, which was not valid JavaScript and could never run, is replaced by a job summary
 - The version reported to MCP clients comes from package.json (it was hard-coded to 0.1.5)
 - `docs/API.md` is now a tool reference generated from the definitions in `src/tools.ts` (`npm run docs:api`), and CI fails if it is out of date. It used to describe version 0.1, including a tool that no longer exists
 - README has a Roadmap section: combinations of variants and custom sequences are planned, and no tool in this release provides them
 
 ### Fixed
-- A missing API key no longer kills the server on the first tool call; the caller gets an error and the server keeps running
+- A missing API key no longer kills the server on the first tool call; the caller gets an error and the server keeps running. The error now points to https://alphagenome.google/api; the address it used to give no longer resolves
 - Bridge errors reach the caller with their real message and type. The bridge reports failures as JSON on stdout and exits non-zero; the client used to look at the exit code first and replace the message with "exited with code 1"
 - Authentication, rate limit, timeout and validation failures are now distinct errors instead of one generic API error
 - `output_types` given as names (`"rna_seq"`, `"splice"`, ...) crashed live inference with `'str' object has no attribute 'to_proto'`; they now select scorers by name on both paths

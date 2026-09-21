@@ -37,10 +37,13 @@ The server chooses between the two automatically, and **every result states its 
 
 **Get started in 3 minutes:**
 
+0. **Get an API key** at https://alphagenome.google/api (free for non-commercial use). You need Node.js 18+ and Python 3.10+.
+
 1. **Install dependencies**
    ```bash
    pip install alphagenome numpy
    ```
+   If this fails, or you are on Windows, use a virtual environment: see [Python environment](#python-environment).
 
 2. **Add to your MCP client** (supports Claude Code, Claude Desktop, Gemini CLI, Cursor, Windsurf)
    ```bash
@@ -58,7 +61,7 @@ The server chooses between the two automatically, and **every result states its 
 
 4. **View results**
 
-   This is a single-nucleotide variant, so it is answered from the Atlas in a few seconds and the report starts with `Source: atlas`. An indel would run live inference instead (30-60 seconds) and say `Source: live`.
+   This is a single-nucleotide variant, so it is answered from the Atlas in a few seconds and the report starts with `Source: atlas`. An indel would run live inference instead (typically 3-10 seconds) and say `Source: live`.
 
 **Want more?** Check out the [24 tools](#available-tools) below.
 
@@ -100,7 +103,7 @@ AlphaGenome MCP Server implements a multi-tier architecture:
 |---|---|---|
 | What it answers | Single-nucleotide substitutions on hg38 (chr1-22, chrX, chrY) | Any single variant: single-nucleotide, indel, multi-nucleotide |
 | How | Looks up precomputed scores | Runs the AlphaGenome model |
-| Typical time | 2-5 seconds per variant, about 7 seconds for a 2,000 bp region | 30-60 seconds per variant |
+| Typical time | 2-5 seconds per variant, about 7 seconds for a 2,000 bp region | 3-10 seconds per variant |
 
 Six tools choose between the two on their own: `predict_variant_effect`, `batch_score_variants`, `assess_pathogenicity`, `batch_pathogenicity_filter`, `generate_variant_report` and `explain_variant_impact`. They take an optional `source` parameter:
 
@@ -260,7 +263,7 @@ Rankings over several scorers use the largest absolute quantile, because quantil
 - Node.js ≥18.0.0
 - Python ≥3.10 (required by the `alphagenome` package)
 - `alphagenome` ≥0.9.0 for the Atlas tools
-- AlphaGenome API key from Google DeepMind
+- AlphaGenome API key: https://alphagenome.google/api (free for non-commercial use)
 - Python packages: `alphagenome`, `numpy`
 
 ### Environment variables
@@ -271,9 +274,44 @@ Rankings over several scorers use the largest absolute quantile, because quantil
 | `ALPHAGENOME_PYTHON` | Python interpreter to use, for example a virtualenv (`/path/to/venv/bin/python`) or, on Windows, `C:\path\to\venv\Scripts\python.exe`. Without it the server tries `python3`, then `python` |
 | `ALPHAGENOME_TIMEOUT_MS` | Time allowed for one call, in milliseconds (default 180000). Raise it for large region scans and batches |
 
+### Python environment
+
+The server runs the AlphaGenome Python SDK in a subprocess, so it needs a Python 3.10+ interpreter that has `alphagenome` installed. A virtual environment is the reliable way to get one: it avoids the "externally managed environment" error of system Pythons on macOS and Linux, and on Windows, where `python3` usually does not exist and `python` is often not on the PATH, it gives you a path to point at.
+
+```bash
+# macOS / Linux
+python3 -m venv ~/.alphagenome-venv
+~/.alphagenome-venv/bin/pip install alphagenome numpy
+```
+```powershell
+# Windows (PowerShell)
+py -3 -m venv $HOME\.alphagenome-venv
+& $HOME\.alphagenome-venv\Scripts\pip install alphagenome numpy
+```
+
+Then tell the server which interpreter to use with `ALPHAGENOME_PYTHON`:
+
+```bash
+claude mcp add alphagenome \
+  --env ALPHAGENOME_API_KEY=YOUR_API_KEY \
+  --env ALPHAGENOME_PYTHON=/Users/you/.alphagenome-venv/bin/python \
+  -- npx -y @jolab/alphagenome-mcp@latest
+```
+
+In a JSON configuration it goes in the same `env` block as the key (use the full path; on Windows, double the backslashes):
+
+```json
+"env": {
+  "ALPHAGENOME_API_KEY": "YOUR_API_KEY",
+  "ALPHAGENOME_PYTHON": "C:\\Users\\you\\.alphagenome-venv\\Scripts\\python.exe"
+}
+```
+
+If `alphagenome` is installed for the `python3` (or `python`) on your PATH, you can skip `ALPHAGENOME_PYTHON`.
+
 ### Setup
 
-**1. Install Python dependencies:**
+**1. Install Python dependencies** (or use the virtual environment above):
 ```bash
 pip install alphagenome numpy
 ```
@@ -388,9 +426,33 @@ Add to your Windsurf settings JSON:
 
 ### Verification
 
-Expected: for a single-nucleotide variant, a report that starts with `Source: atlas` within a few seconds. For an indel, a report that says `Source: live` within 30-60 seconds.
+1. Check that the client can start the server. In Claude Code:
+   ```bash
+   claude mcp list
+   ```
+   `alphagenome: ... ✔ Connected` means the server starts. It does not yet prove that Python and the key work; the first query does.
+2. Restart your MCP client and ask:
+   ```
+   "Use alphagenome to analyze chr19:44908684T>C"
+   ```
+   Expected: a report that starts with `Source: atlas` within a few seconds. An indel (for example `chr17:49210289 CCC>C`) says `Source: live` and typically takes 3-10 seconds.
 
-**Important:** Always include "use alphagenome" in queries to explicitly invoke the server.
+### Troubleshooting
+
+The server reports problems as tool errors and keeps running. The message tells you which case you are in:
+
+| Message | Cause and fix |
+|---|---|
+| `No Python interpreter found (tried: python3, python)` | No Python on the PATH of the MCP client. Set `ALPHAGENOME_PYTHON` to the full path of an interpreter (see [Python environment](#python-environment)). Common on Windows |
+| `AlphaGenome package not installed for this interpreter (...)` | The interpreter in the message has no `alphagenome`. Install it for that interpreter, or point `ALPHAGENOME_PYTHON` at the one that has it. `pip install` fails on Python older than 3.10 |
+| `AlphaGenome API key is missing` | Put `ALPHAGENOME_API_KEY` in the `env` block of the client configuration. Get a key at https://alphagenome.google/api |
+| `API key error: ...` | The key was rejected. Check for a truncated or expired key |
+| `reference base does not match the expected reference base: X` | The `ref` allele is not what hg38 has at that position. Check the genome build (hg38, not hg19), that the position is 1-based, and the strand. The message names the base the reference has |
+| `request quota ... is exhausted` / `Rate limit exceeded` | The API's per-minute quota. Wait a minute; scan a smaller region |
+| `timed out after 180000 ms` | A large scan or batch. Raise `ALPHAGENOME_TIMEOUT_MS`, or ask for less |
+| `This alphagenome installation has no Atlas client` | `pip install --upgrade alphagenome` (0.9.0 or newer) |
+
+**Tip:** say "use alphagenome" in a query when the client does not pick the server on its own.
 
 ## Usage Examples
 
@@ -500,7 +562,7 @@ The two SNVs are answered from the Atlas and ranked by the AVI score (rs7412: 0.
 ## Performance
 
 - **Atlas**: 2-5 seconds per variant, about 7 seconds for a 2,000 bp region scan (with `AVI_SCORE`)
-- **Live inference**: 30-60 seconds per variant
+- **Live inference**: typically 3-10 seconds per variant (measured through the server, September 2026; depends on API load)
 - **Modalities**: 11 (RNA-seq, CAGE, PRO-cap, splice sites, DNase, ATAC, histone mods, TF binding, contact maps)
 
 ## Development
@@ -642,10 +704,13 @@ See [LICENSE](LICENSE) file for details.
 
 **3분 안에 시작하기:**
 
+0. **API 키 발급**: https://alphagenome.google/api (비상업적 용도 무료). Node.js 18 이상과 Python 3.10 이상이 필요합니다.
+
 1. **Python 패키지 설치**
    ```bash
    pip install alphagenome numpy
    ```
+   실패하거나 Windows를 쓰신다면 가상환경을 쓰세요: [Python 환경](#python-환경) 참고
 
 2. **MCP 클라이언트에 추가** (Claude Code, Claude Desktop, Gemini CLI, Cursor, Windsurf 지원)
    ```bash
@@ -667,7 +732,7 @@ See [LICENSE](LICENSE) file for details.
 
 4. **결과 확인**
 
-   이 변이는 단일 염기 변이이므로 Atlas에서 몇 초 안에 답이 오고, 보고서는 `Source: atlas`로 시작합니다. indel이라면 실시간 추론이 실행되어(30-60초) `Source: live`로 표시됩니다.
+   이 변이는 단일 염기 변이이므로 Atlas에서 몇 초 안에 답이 오고, 보고서는 `Source: atlas`로 시작합니다. indel이라면 실시간 추론이 실행되어(보통 3-10초) `Source: live`로 표시됩니다.
 
 **더 알아보기:** [Atlas와 실시간 추론](#atlas와-실시간-추론), [사용 예시](#사용-예시)
 
@@ -705,7 +770,7 @@ See [LICENSE](LICENSE) file for details.
 |---|---|---|
 | 답할 수 있는 것 | hg38의 단일 염기 치환 (chr1-22, chrX, chrY) | 모든 종류의 단일 변이: 단일 염기, indel, 다염기 |
 | 방식 | 미리 계산된 점수 조회 | AlphaGenome 모델 실행 |
-| 소요 시간 | 변이당 2-5초, 2,000 bp 구간 약 7초 | 변이당 30-60초 |
+| 소요 시간 | 변이당 2-5초, 2,000 bp 구간 약 7초 | 변이당 3-10초 |
 
 `predict_variant_effect`, `batch_score_variants`, `assess_pathogenicity`, `batch_pathogenicity_filter`, `generate_variant_report`, `explain_variant_impact` 여섯 도구가 둘 중 하나를 스스로 고릅니다. 선택 파라미터 `source`로 바꿀 수 있습니다. 나머지 변이 도구 14개는 실시간 추론(`score_variant`)을 사용하며 결과에 `source: live`로 표시됩니다.
 
@@ -759,7 +824,7 @@ AVI 점수는 Atlas만 제공하므로 단일 염기 변이에만 있습니다. 
 - Node.js ≥18.0.0
 - Python ≥3.10 (`alphagenome` 패키지 요구사항)
 - Atlas 도구에는 `alphagenome` ≥0.9.0
-- AlphaGenome API 키 (Google DeepMind에서 발급)
+- AlphaGenome API 키: https://alphagenome.google/api (비상업적 용도 무료)
 - Python 패키지: `alphagenome`, `numpy`
 
 ### 환경 변수
@@ -770,9 +835,44 @@ AVI 점수는 Atlas만 제공하므로 단일 염기 변이에만 있습니다. 
 | `ALPHAGENOME_PYTHON` | 사용할 Python 인터프리터. 예: 가상환경(`/path/to/venv/bin/python`), Windows에서는 `C:\path\to\venv\Scripts\python.exe`. 지정하지 않으면 `python3`, 그다음 `python`을 시도 |
 | `ALPHAGENOME_TIMEOUT_MS` | 호출 1회에 허용하는 시간(밀리초, 기본 180000). 큰 구간 스캔이나 배치에서는 늘리세요 |
 
+### Python 환경
+
+서버는 AlphaGenome Python SDK를 하위 프로세스로 실행하므로, `alphagenome`이 설치된 Python 3.10 이상 인터프리터가 필요합니다. 가상환경을 쓰는 것이 가장 확실합니다. macOS와 Linux의 시스템 Python에서 나는 "externally managed environment" 오류를 피할 수 있고, `python3`가 보통 없고 `python`도 PATH에 없는 경우가 많은 Windows에서는 지정할 경로가 생깁니다.
+
+```bash
+# macOS / Linux
+python3 -m venv ~/.alphagenome-venv
+~/.alphagenome-venv/bin/pip install alphagenome numpy
+```
+```powershell
+# Windows (PowerShell)
+py -3 -m venv $HOME\.alphagenome-venv
+& $HOME\.alphagenome-venv\Scripts\pip install alphagenome numpy
+```
+
+그다음 `ALPHAGENOME_PYTHON`으로 어느 인터프리터를 쓸지 알려 줍니다.
+
+```bash
+claude mcp add alphagenome \
+  --env ALPHAGENOME_API_KEY=YOUR_API_KEY \
+  --env ALPHAGENOME_PYTHON=/Users/you/.alphagenome-venv/bin/python \
+  -- npx -y @jolab/alphagenome-mcp@latest
+```
+
+JSON 설정에서는 키와 같은 `env` 블록에 넣습니다(전체 경로를 쓰고, Windows에서는 역슬래시를 두 번 씁니다).
+
+```json
+"env": {
+  "ALPHAGENOME_API_KEY": "YOUR_API_KEY",
+  "ALPHAGENOME_PYTHON": "C:\\Users\\you\\.alphagenome-venv\\Scripts\\python.exe"
+}
+```
+
+PATH에 있는 `python3`(또는 `python`)에 `alphagenome`이 설치되어 있다면 `ALPHAGENOME_PYTHON`은 생략해도 됩니다.
+
 ### 설치
 
-**1. Python 패키지 설치:**
+**1. Python 패키지 설치** (또는 위의 가상환경 사용):
 ```bash
 pip install alphagenome numpy
 ```
@@ -830,6 +930,36 @@ claude mcp add alphagenome --env ALPHAGENOME_API_KEY=YOUR_API_KEY -- npx -y @jol
 }
 ```
 </details>
+
+Gemini CLI(`~/.gemini/settings.json`)와 Windsurf(설정 JSON)도 위와 같은 `mcpServers` 블록을 씁니다.
+
+### 설치 확인
+
+1. 클라이언트가 서버를 띄울 수 있는지 확인합니다. Claude Code에서는:
+   ```bash
+   claude mcp list
+   ```
+   `alphagenome: ... ✔ Connected`가 보이면 서버가 시작된 것입니다. Python과 키가 제대로인지는 첫 질의에서 확인됩니다.
+2. MCP 클라이언트를 재시작하고 물어봅니다.
+   ```
+   "alphagenome으로 chr19:44908684T>C를 분석해줘"
+   ```
+   몇 초 안에 `Source: atlas`로 시작하는 보고서가 나오면 정상입니다. indel(예: `chr17:49210289 CCC>C`)은 `Source: live`로 표시되고 보통 3-10초 걸립니다.
+
+### 문제 해결
+
+서버는 문제를 도구 오류로 알려 주고 계속 실행됩니다. 메시지를 보면 어느 경우인지 알 수 있습니다.
+
+| 메시지 | 원인과 해결 |
+|---|---|
+| `No Python interpreter found (tried: python3, python)` | MCP 클라이언트의 PATH에 Python이 없음. `ALPHAGENOME_PYTHON`에 인터프리터 전체 경로를 지정([Python 환경](#python-환경) 참고). Windows에서 흔함 |
+| `AlphaGenome package not installed for this interpreter (...)` | 메시지에 나온 인터프리터에 `alphagenome`이 없음. 그 인터프리터에 설치하거나, 설치된 쪽을 `ALPHAGENOME_PYTHON`으로 지정. Python 3.10 미만에서는 `pip install`이 실패함 |
+| `AlphaGenome API key is missing` | 클라이언트 설정의 `env` 블록에 `ALPHAGENOME_API_KEY`를 넣음. 키 발급: https://alphagenome.google/api |
+| `API key error: ...` | 키가 거부됨. 잘리거나 만료된 키인지 확인 |
+| `reference base does not match the expected reference base: X` | `ref` 염기가 그 위치의 hg38과 다름. 유전체 빌드(hg19가 아닌 hg38), 위치가 1부터 세는지, 가닥 방향을 확인. 메시지에 참조 유전체의 염기가 나옴 |
+| `request quota ... is exhausted` / `Rate limit exceeded` | API의 분당 호출 한도. 1분 기다리거나 더 작은 구간을 스캔 |
+| `timed out after 180000 ms` | 큰 스캔이나 배치. `ALPHAGENOME_TIMEOUT_MS`를 늘리거나 요청을 줄임 |
+| `This alphagenome installation has no Atlas client` | `pip install --upgrade alphagenome` (0.9.0 이상) |
 
 ## 변이 도구
 
@@ -895,7 +1025,7 @@ chr17:49210289 C>T, scorer별 가장 강한 트랙:
 ## 성능
 
 - **Atlas**: 변이당 2-5초, 2,000 bp 구간 스캔 약 7초 (`AVI_SCORE` 기준)
-- **실시간 추론**: 변이당 30-60초
+- **실시간 추론**: 변이당 보통 3-10초 (서버를 통한 실측, 2026년 9월. API 부하에 따라 달라짐)
 - **분석 양식**: 11가지 (RNA-seq, CAGE, PRO-cap, 스플라이스 사이트, DNase, ATAC, 히스톤 변형, 전사인자 결합, 접촉 맵)
 
 ## 로드맵
