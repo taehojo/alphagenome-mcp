@@ -58,6 +58,7 @@ Live inference no longer classifies variants, and the output of every live tool 
 - `output_types` given as names (`"rna_seq"`, `"splice"`, ...) crashed live inference with `'str' object has no attribute 'to_proto'`; they now select scorers by name on both paths
 - `compare_variants_same_gene` ignored its `gene_name` parameter (the bridge read `gene`)
 - A failed `alphagenome` import is reported on stdout as JSON, so the client can show it
+- `bin` in package.json was written `./build/index.js`. npm 11 treats that as invalid and drops the entry from the published metadata, which would have left `npx @jolab/alphagenome-mcp` with nothing to run. Now `build/index.js`, as `npm pkg fix` writes it
 - `npm test` matched no files and passed with 0 tests; `npm run format:check` and `npm run lint` failed on Windows because of single-quoted globs
 
 ### Removed
