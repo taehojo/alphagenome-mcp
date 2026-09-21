@@ -7,6 +7,41 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.3.0] - 2026-09-21
+
+AlphaGenome as a tool for Claude agents: the precomputed AlphaGenome Atlas for single-nucleotide variants, live inference for everything else, chosen automatically, with the source stated on every result.
+
+### Added
+- AlphaGenome Atlas tools (precomputed scores, no model call)
+  - atlas_list_scorers: the scorers the Atlas serves, cached for the session
+  - atlas_lookup_variant: strongest tracks per scorer for one single-nucleotide variant
+  - atlas_lookup_variants: up to 500 variants ranked; missing and rejected variants listed separately
+  - atlas_scan_region: every substitution in up to 50,000 bp, ranked
+- `source` parameter (`auto` default, `atlas`, `live`) and `scorers` parameter on predict_variant_effect, assess_pathogenicity and batch_score_variants
+- Every result states its source: `atlas`, `live`, or `live (atlas fallback: <reason>)`. Batches report how many variants came from each source and how many fell back
+- Response size cap: Atlas results are ranked summaries (top_n default 25, maximum 100), never a score matrix, and no response exceeds 40,000 characters
+- `ALPHAGENOME_PYTHON` to choose the interpreter; `python3` then `python` are tried otherwise (fixes Windows, where `python3` usually does not exist)
+- `ALPHAGENOME_TIMEOUT_MS` (default 180000). A call that runs over is stopped with a clear error instead of hanging
+- Unit tests for validation, formatting, routing, configuration and the routed tools; they run without an API key and in CI
+
+### Changed
+- README reframed around the agent use case; installation now recommends passing the key through `env` rather than `--api-key`, documents `claude mcp add` for Claude Code and the Claude Desktop config paths for macOS and Windows
+- Python 3.10 or newer is required, as the `alphagenome` package requires it (the README said 3.8)
+- From the Atlas, assess_pathogenicity returns the AVI score and the strongest effects with `classification: null`. The Atlas stores scores, not a pathogenic/benign call
+- The version reported to MCP clients comes from package.json (it was hard-coded to 0.1.5)
+
+### Fixed
+- A missing API key no longer kills the server on the first tool call; the caller gets an error and the server keeps running
+- Bridge errors reach the caller with their real message and type. The bridge reports failures as JSON on stdout and exits non-zero; the client used to look at the exit code first and replace the message with "exited with code 1"
+- Authentication, rate limit, timeout and validation failures are now distinct errors instead of one generic API error
+- `output_types` given as names (`"rna_seq"`, `"splice"`, ...) crashed live inference with `'str' object has no attribute 'to_proto'`; they are now mapped to the SDK's enum
+- A failed `alphagenome` import is reported on stdout as JSON, so the client can show it
+- `npm test` matched no files and passed with 0 tests; `npm run format:check` and `npm run lint` failed on Windows because of single-quoted globs
+
+### Removed
+- The constant `confidence: 0.85` in live RNA-seq results. It was a placeholder, not a model output
+- Unused `axios` and `axios-retry` dependencies
+
 ## [0.2.0] - 2025-10-13
 
 ### Added

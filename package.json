@@ -1,7 +1,7 @@
 {
   "name": "@jolab/alphagenome-mcp",
-  "version": "0.2.0",
-  "description": "MCP server integrating Google DeepMind's AlphaGenome for AI-powered genomic variant analysis with Claude Desktop",
+  "version": "0.3.0",
+  "description": "AlphaGenome as a tool for Claude agents: an MCP server that answers single-nucleotide variants from the precomputed AlphaGenome Atlas and everything else with live inference, and always states the source",
   "type": "module",
   "main": "build/index.js",
   "types": "build/index.d.ts",
@@ -48,7 +48,10 @@
     "claude-desktop",
     "ai",
     "machine-learning",
-    "anthropic"
+    "anthropic",
+    "atlas",
+    "alphagenome-atlas",
+    "variant-effect"
   ],
   "author": {
     "name": "Taeho Jo",
