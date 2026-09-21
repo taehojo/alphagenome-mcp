@@ -9,15 +9,15 @@ AlphaGenome as a tool for Claude agents. A Model Context Protocol (MCP) server t
 
 ## Demo
 
-Three minutes in Claude Code, with the published package and the real API. The video has no sound.
+Ninety seconds in Claude Code, shown at 2x speed, with the published package and the real API. The video has no sound; pause it to read an answer.
 
-https://github.com/user-attachments/assets/85e8eca5-af22-4f1a-9707-daf4c488d1cd
+https://github.com/user-attachments/assets/cbd083ee-53f9-4b35-b11e-3b33e10f7df9
 
 | Time | Prompt | What happens |
 |---|---|---|
-| 0:15 | `Use alphagenome to analyze chr19:44908684 T>C (APOE rs429358)` | A single-nucleotide variant: answered from the Atlas, with the AVI score |
-| 1:10 | `Now analyze the 2 bp deletion chr17:49210289 CCC>C` | The Atlas cannot hold an indel: live inference, and the result says so. A live result has no AVI score |
-| 2:10 | `Scan chr19:44907684-44909684 with alphagenome and show the 10 substitutions with the largest predicted impact` | 6,003 substitutions ranked from the Atlas without running the model |
+| 0:08 | `Use alphagenome to analyze chr19:44908684 T>C (APOE rs429358)` | A single-nucleotide variant: answered from the Atlas, with the AVI score |
+| 0:36 | `Now analyze the 2 bp deletion chr17:49210289 CCC>C` | The Atlas cannot hold an indel: live inference, and the result says so. A live result has no AVI score |
+| 1:05 | `Scan chr19:44907684-44909684 with alphagenome and show the 10 substitutions with the largest predicted impact` | 6,003 substitutions ranked from the Atlas without running the model |
 
 The explanations in the video are written by Claude from the tool results. The tools themselves return scores and calibrated quantiles, and never a pathogenicity call.
 
