@@ -18,14 +18,7 @@ export interface VariantPredictionParams {
 }
 
 export type OutputType =
-  | 'rna_seq'
-  | 'cage'
-  | 'splice'
-  | 'histone'
-  | 'tf_binding'
-  | 'dnase'
-  | 'atac'
-  | 'contact_map';
+  'rna_seq' | 'cage' | 'splice' | 'histone' | 'tf_binding' | 'dnase' | 'atac' | 'contact_map';
 
 export interface VariantResult {
   variant: string;
@@ -49,7 +42,6 @@ export interface RnaSeqPrediction {
   reference_score: number;
   alternate_score: number;
   fold_change: number;
-  confidence: number;
 }
 
 export interface SplicePrediction {

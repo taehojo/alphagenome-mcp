@@ -2,6 +2,7 @@
 
 // src/index.ts
 
+import { createRequire } from 'module';
 import { Server } from '@modelcontextprotocol/sdk/server/index.js';
 import { StdioServerTransport } from '@modelcontextprotocol/sdk/server/stdio.js';
 import {
@@ -12,7 +13,7 @@ import {
 } from '@modelcontextprotocol/sdk/types.js';
 
 import { AlphaGenomeClient } from './alphagenome-client.js';
-import { ApiKeyError, RateLimitError, ValidationError } from './types.js';
+import { ApiKeyError, NetworkError, RateLimitError, ValidationError } from './types.js';
 import { ALL_TOOLS } from './tools.js';
 import {
   validateInput,
@@ -46,11 +47,16 @@ function parseApiKey(): string | undefined {
 
 const CLI_API_KEY = parseApiKey();
 
+// The version reported to MCP clients comes from package.json, so it cannot
+// drift from the published package. build/index.js sits one level below it.
+const require = createRequire(import.meta.url);
+const { version: PACKAGE_VERSION } = require('../package.json') as { version: string };
+
 // Create MCP server
 const server = new Server(
   {
     name: 'alphagenome-mcp',
-    version: '0.1.5',
+    version: PACKAGE_VERSION,
   },
   {
     capabilities: {
@@ -72,16 +78,14 @@ function getClient(): AlphaGenomeClient {
       client = new AlphaGenomeClient(CLI_API_KEY);
     } catch (error) {
       if (error instanceof ApiKeyError) {
-        console.error('\n❌ AlphaGenome API Key Error:\n');
-        console.error(error.message);
-        console.error('\nTo fix this:');
-        console.error('1. Get an API key from https://alphagenome.deepmind.com');
-        console.error('2. Provide it via command-line:');
-        console.error('   --api-key YOUR_API_KEY');
-        console.error('3. Or set it in your environment or Claude config:');
-        console.error('   export ALPHAGENOME_API_KEY=your-key-here');
-        console.error('4. Or use mock mode for testing: ALPHAGENOME_API_KEY=mock\n');
-        process.exit(1);
+        // Report the problem to the caller and keep serving. Exiting here would
+        // take the whole server down the first time any tool is called.
+        throw new McpError(
+          ErrorCode.InvalidRequest,
+          'AlphaGenome API key is missing. Get a key from https://alphagenome.deepmind.com ' +
+            'and set ALPHAGENOME_API_KEY in the "env" block of your MCP client configuration ' +
+            '(preferred), or pass --api-key on the command line.'
+        );
       }
       throw error;
     }
@@ -295,7 +299,11 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
 
       // API errors
       if (error instanceof ApiKeyError) {
-        throw new McpError(ErrorCode.InternalError, `API key error: ${error.message}`);
+        throw new McpError(ErrorCode.InvalidRequest, `API key error: ${error.message}`);
+      }
+
+      if (error instanceof NetworkError) {
+        throw new McpError(ErrorCode.InternalError, `Network error: ${error.message}`);
       }
 
       if (error instanceof RateLimitError) {
