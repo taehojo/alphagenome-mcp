@@ -4,9 +4,9 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project Overview
 
-AlphaGenome MCP (Model Context Protocol) Server - A specialized MCP server for genomic variant analysis using Google DeepMind's AlphaGenome AI.
+AlphaGenome MCP (Model Context Protocol) Server: AlphaGenome as a tool for Claude agents. The agent turns a researcher's question into an analysis; the server answers single-nucleotide variants from the precomputed AlphaGenome Atlas and everything else (indels, multi-nucleotide variants, combinations, custom sequences) with live inference, chooses between the two automatically, and states the source on every result.
 
-**Real API Integration**: Uses AlphaGenome Python SDK via a Python bridge for production-grade genomic analysis.
+**Real API Integration**: Uses the AlphaGenome Python SDK through a Python bridge. Nothing is mocked.
 
 ## Development Commands
 
@@ -31,6 +31,9 @@ npm run format:check
 
 # Type check without building
 npm run typecheck
+
+# Build, then run the unit tests (no API key needed)
+npm test
 ```
 
 ### Running Locally
@@ -55,26 +58,49 @@ node build/index.js --api-key your-key-here
    - Error handling and formatting
 
 2. **src/alphagenome-client.ts** - API client
-   - Python subprocess bridge to AlphaGenome SDK
-   - Real-time API calls to Google DeepMind's service
-   - Comprehensive error handling
+   - Spawns the Python bridge once per call; the API key travels on stdin, never on the command line
+   - Timeout per call (`ALPHAGENOME_TIMEOUT_MS`, default 180000): the process is killed and a `NetworkError` is raised
+   - Interpreter choice: `ALPHAGENOME_PYTHON` pins one; otherwise `python3`, then `python`
+   - Reads the JSON on stdout before judging the exit code, and maps `error_type` to typed errors
+   - Atlas methods; the scorer list is cached for the session
 
-3. **src/tools.ts** - MCP tool definitions
-   - Three main tools: predict_variant_effect, analyze_region, batch_score_variants
-   - JSON schema definitions for inputs
+3. **src/routing.ts** - Atlas or live inference
+   - Pure functions, tested without an API key
+   - `decideSource(mode, variant)`: `auto` sends a single-base `ref`/`alt` on chr1-22/X/Y to the Atlas and everything else to live; `atlas` throws `ValidationError` for anything else; `live` is always live
+   - `shouldFallBackToLive(mode, error)`: true only for `auto` + `AtlasNotAvailableError`. Never for auth, rate limit, network, timeout or validation errors
 
-4. **src/types.ts** - TypeScript type definitions
-   - All interfaces and types
-   - Custom error classes
+4. **src/routed-tools.ts** - `predict_variant_effect`, `assess_pathogenicity`, `batch_score_variants`
+   - Route, fall back and label. Depend on the narrow `VariantBackend` interface so they are tested with a fake backend
+   - Every result carries `source`: `atlas`, `live`, or `live (atlas fallback: <reason>)`
+   - A mixed batch is two separately ranked groups. Atlas scores and live scores are different quantities
 
-5. **src/utils/** - Utility modules
-   - **validation.ts**: Zod schemas for input validation
-   - **formatting.ts**: Markdown output formatting
+5. **src/tools.ts** - MCP tool definitions (24: 4 Atlas tools, 20 live-inference tools)
+
+6. **src/types.ts** - Interfaces, Atlas result types, custom error classes
+
+7. **src/utils/** - Utility modules
+   - **config.ts**: environment variables, as pure functions
+   - **validation.ts**: Zod schemas; Atlas caps (500 variants, 50,000 bp, top_n ≤ 100)
+   - **formatting.ts**: Markdown for live results; `formatSourceLine`
+   - **atlas-formatting.ts**: Markdown for Atlas results; `capResponse` (40,000 characters)
+
+8. **scripts/alphagenome_bridge.py** - live inference; **scripts/atlas_actions.py** - Atlas lookups
+   - stdout carries exactly one JSON response; logs go to stderr
+   - `classify_error` turns gRPC statuses into `error_type`
+   - Atlas summaries only: ranked rows, never a matrix
+
+### Atlas facts learned from the real API (SDK 0.9.0)
+
+- Every query needs `requested_scorers`; there is no default. An unknown scorer name comes back as NOT_FOUND ("variant not found"), so names are validated against `scorer_metadata()` first.
+- A result is `{scorer: AnnData}`: `X` rows x tracks, `obs` = variant (plus gene or junction for gene-level scorers), `var` = track metadata, `layers['quantiles']` = calibrated scores.
+- The SDK raises `ValueError` for both NOT_FOUND and INVALID_ARGUMENT; the gRPC status is on `__cause__`. NOT_FOUND means the Atlas does not hold the variant (fallback allowed). INVALID_ARGUMENT covers a reference base that does not match hg38 (the message names the expected base), a position past the chromosome end, and alleles longer than one base (no fallback).
+- `query_variants` fails the whole batch on the first bad variant, so the bridge queries per variant and lists misses separately.
+- `query_interval` makes one request per 32 bp and there is a requests-per-minute quota. Gene-level scorers exceed the 4 MB gRPC message limit in an interval query.
 
 ### Data Flow
 
 ```
-Claude Desktop → stdio → MCP Server → Validate Input → AlphaGenome Client → Python Bridge → AlphaGenome API → Format Output → Claude
+MCP client → stdio → MCP Server → Validate Input → Route (Atlas or live) → AlphaGenome Client → Python Bridge → AlphaGenome API → Summarise and label the source → MCP client
 ```
 
 ## API Integration
@@ -133,17 +159,17 @@ Restart Claude Desktop and test with:
 
 GitHub Actions workflows:
 - **test.yml**: Runs on push/PR (lint, typecheck, build, test)
-- **publish.yml**: Auto-publishes to npm on release
+- **publish.yml**: Auto-publishes to npm on release. Creating a GitHub release publishes the package, so do not create one as a side effect
 
 ## Python Dependencies
 
-This server requires Python 3 and the AlphaGenome SDK:
+This server requires Python 3.10 or newer and the AlphaGenome SDK (0.9.0 or newer for the Atlas):
 
 ```bash
 pip install alphagenome numpy
 ```
 
-The Python bridge script (`scripts/alphagenome_bridge.py`) handles all communication with the AlphaGenome API.
+The Python bridge (`scripts/alphagenome_bridge.py`, with `scripts/atlas_actions.py` for the Atlas) handles all communication with the AlphaGenome API.
 
 ## Important Notes
 
