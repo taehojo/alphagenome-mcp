@@ -14,8 +14,9 @@ export function formatVariantResult(result: VariantResult): string {
   if (result.gene_context) {
     output += `**Gene Context**: ${result.gene_context}\n`;
   }
-  output += `**Analysis Date**: ${date} ${time} UTC\n\n`;
-  output += `---\n\n`;
+  output += `**Analysis Date**: ${date} ${time} UTC\n`;
+  output += formatSourceLine(result.source, result.source_hint);
+  output += `\n---\n\n`;
 
   // Summary table
   output += `## 📊 Regulatory Impact Summary\n\n`;
@@ -91,7 +92,7 @@ export function formatVariantResult(result: VariantResult): string {
   output += `## 🎯 Clinical Interpretation\n\n`;
   output += `### Impact Classification\n`;
   output += `**${result.interpretation.clinical_significance?.toUpperCase() || 'UNCERTAIN'}** `;
-  output += `(${result.interpretation.impact_level} confidence)\n\n`;
+  output += `(impact level: ${result.interpretation.impact_level})\n\n`;
 
   if (result.interpretation.recommendations.length > 0) {
     output += `### Recommendations\n`;
@@ -110,7 +111,7 @@ export function formatVariantResult(result: VariantResult): string {
   output += `- ✅ Predictions based on multi-modal genomic data\n`;
   output += `- 📋 Always validate findings with wet-lab experiments\n\n`;
   output += `---\n\n`;
-  output += `*AlphaGenome MCP Server v0.1.0*\n`;
+  output += `*AlphaGenome MCP Server*\n`;
   output += `*GitHub: https://github.com/taehojo/alphagenome-mcp*\n`;
 
   return output;
@@ -198,7 +199,7 @@ export function formatRegionResult(result: RegionResult): string {
   output += `- ✅ Powered by AlphaGenome AI predictions\n`;
   output += `- 📋 Validate with experimental data\n\n`;
   output += `---\n\n`;
-  output += `*AlphaGenome MCP Server v0.1.0*\n`;
+  output += `*AlphaGenome MCP Server*\n`;
   output += `*GitHub: https://github.com/taehojo/alphagenome-mcp*\n`;
 
   return output;
@@ -213,8 +214,14 @@ export function formatBatchResult(result: BatchResult): string {
 
   let output = `# 📊 AlphaGenome Batch Variant Analysis\n\n`;
   output += `**Total Variants Analyzed**: ${result.total_analyzed}\n`;
-  output += `**Analysis Date**: ${date} ${time} UTC\n\n`;
-  output += `---\n\n`;
+  output += `**Analysis Date**: ${date} ${time} UTC\n`;
+  output += formatSourceLine(result.source);
+  if (result.source_counts) {
+    const c = result.source_counts;
+    output += `**Answered from**: atlas ${c.atlas}, live ${c.live}`;
+    output += c.atlas_fallback > 0 ? ` (${c.atlas_fallback} after atlas fallback)\n` : `\n`;
+  }
+  output += `\n---\n\n`;
 
   output += `## 🏆 Top Variants by Impact\n\n`;
   output += `| Rank | Variant ID | Location | Impact Score | Impact Level | Key Effect |\n`;
@@ -256,7 +263,7 @@ export function formatBatchResult(result: BatchResult): string {
   output += `- ✅ Powered by AlphaGenome AI predictions\n`;
   output += `- 📋 Validate with experimental data\n\n`;
   output += `---\n\n`;
-  output += `*AlphaGenome MCP Server v0.1.0*\n`;
+  output += `*AlphaGenome MCP Server*\n`;
   output += `*GitHub: https://github.com/taehojo/alphagenome-mcp*\n`;
 
   return output;
@@ -265,6 +272,19 @@ export function formatBatchResult(result: BatchResult): string {
 // ============================================================================
 // Helper Functions
 // ============================================================================
+
+/**
+ * The line that says where an answer came from. Every formatted result has
+ * one, so a reader never has to guess whether a number is a precomputed Atlas
+ * score or a fresh model call.
+ */
+export function formatSourceLine(source?: string, hint?: string): string {
+  let line = `**Source**: ${source ?? 'live'}\n`;
+  if (hint) {
+    line += `**Note**: ${hint}\n`;
+  }
+  return line;
+}
 
 function getImpactBadge(level: string): string {
   switch (level) {
