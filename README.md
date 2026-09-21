@@ -14,6 +14,24 @@ AlphaGenome as a tool for Claude agents. A Model Context Protocol (MCP) server t
 
 > **한국어 요약:** AlphaGenome을 Claude 에이전트의 도구로 만드는 MCP 서버입니다. 에이전트가 연구자의 질문을 분석으로 바꿉니다. 단일 염기 변이는 미리 계산된 AlphaGenome Atlas에서 즉시 조회하고, indel을 비롯해 Atlas가 미리 계산해 둘 수 없는 변이는 실시간 추론으로 처리합니다. 어느 쪽에서 답했는지 항상 결과에 표시합니다. [한국어 전체 문서 보기](#korean)
 
+<p align="center">
+  <img src="docs/images/how-it-works.png" width="900" alt="How the AlphaGenome MCP Server works. 1: you ask in plain language. 2: the server routes the request: the precomputed AlphaGenome Atlas for a single-nucleotide variant, live inference for an indel or anything the Atlas cannot precompute, and a validation error when the reference base does not match. 3: you get an answer labeled with its source.">
+</p>
+
+## Demo
+
+Three minutes in Claude Code, with the published package and the real API. The video has no sound.
+
+https://github.com/user-attachments/assets/85e8eca5-af22-4f1a-9707-daf4c488d1cd
+
+| Time | Prompt | What happens |
+|---|---|---|
+| 0:15 | `Use alphagenome to analyze chr19:44908684 T>C (APOE rs429358)` | A single-nucleotide variant: answered from the Atlas, with the AVI score |
+| 1:10 | `Now analyze the 2 bp deletion chr17:49210289 CCC>C` | The Atlas cannot hold an indel: live inference, and the result says so. A live result has no AVI score |
+| 2:10 | `Scan chr19:44907684-44909684 with alphagenome and show the 10 substitutions with the largest predicted impact` | 6,003 substitutions ranked from the Atlas without running the model |
+
+The explanations in the video are written by Claude from the tool results. The tools themselves return scores and calibrated quantiles, and never a pathogenicity call.
+
 ## Overview
 
 A researcher asks a question; the agent decides which AlphaGenome calls answer it, runs them, and reads the results back. This server gives the agent the two ways AlphaGenome can be asked:
@@ -675,6 +693,24 @@ See [LICENSE](LICENSE) file for details.
 
 [![npm version](https://badge.fury.io/js/%40jolab%2Falphagenome-mcp.svg)](https://www.npmjs.com/package/@jolab/alphagenome-mcp)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
+
+<p align="center">
+  <img src="docs/images/how-it-works.png" width="900" alt="AlphaGenome MCP 서버의 동작 방식. 1: 자연어로 질문합니다. 2: 서버가 경로를 정합니다. 단일 염기 변이는 미리 계산된 AlphaGenome Atlas, indel처럼 Atlas가 미리 계산할 수 없는 것은 실시간 추론, 참조 염기가 맞지 않으면 검증 오류. 3: 출처가 표시된 답을 받습니다.">
+</p>
+
+## 데모
+
+Claude Code에서 3분. npm에 게시된 패키지와 실제 API를 사용했습니다. 영상에 소리는 없습니다.
+
+https://github.com/user-attachments/assets/85e8eca5-af22-4f1a-9707-daf4c488d1cd
+
+| 시각 | 질문 | 일어나는 일 |
+|---|---|---|
+| 0:15 | `Use alphagenome to analyze chr19:44908684 T>C (APOE rs429358)` | 단일 염기 변이: Atlas에서 답하고 AVI 점수가 함께 나옵니다 |
+| 1:10 | `Now analyze the 2 bp deletion chr17:49210289 CCC>C` | indel은 Atlas에 없으므로 실시간 추론으로 처리되고, 결과에 그렇게 표시됩니다. 실시간 결과에는 AVI 점수가 없습니다 |
+| 2:10 | `Scan chr19:44907684-44909684 with alphagenome and show the 10 substitutions with the largest predicted impact` | 모델을 돌리지 않고 Atlas에서 6,003개 치환의 순위를 매깁니다 |
+
+영상 속 설명은 Claude가 도구 결과를 읽고 쓴 것입니다. 도구 자체는 점수와 보정 quantile만 돌려주며 병원성 판정은 하지 않습니다.
 
 ## 개요
 
