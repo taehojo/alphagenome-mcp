@@ -15,6 +15,10 @@ export interface VariantPredictionParams {
   alt: string;
   output_types?: OutputType[];
   tissue_type?: string;
+  /** Where to answer from: auto (default), atlas, or live. */
+  source?: 'auto' | 'atlas' | 'live';
+  /** Atlas scorers to use instead of the default set. */
+  scorers?: string[];
 }
 
 export type OutputType =
@@ -22,6 +26,10 @@ export type OutputType =
 
 export interface VariantResult {
   variant: string;
+  /** "atlas", "live", or "live (atlas fallback: <reason>)". Set by the server. */
+  source?: string;
+  /** Why an eligible variant was not answered from the Atlas, when that is likely fixable. */
+  source_hint?: string;
   gene_context?: string;
   predictions: {
     rna_seq?: RnaSeqPrediction;
@@ -159,10 +167,18 @@ export interface BatchScoreParams {
   scoring_metric: 'rna_seq' | 'splice' | 'regulatory_impact' | 'combined';
   top_n?: number;
   include_interpretation?: boolean;
+  /** Where to answer from: auto (default), atlas, or live. */
+  source?: 'auto' | 'atlas' | 'live';
+  /** Atlas scorers to use instead of the default set. */
+  scorers?: string[];
 }
 
 export interface BatchResult {
   total_analyzed: number;
+  /** "atlas", "live", or "mixed" when variants were answered from both. */
+  source?: string;
+  /** How many variants each source answered. */
+  source_counts?: { atlas: number; live: number; atlas_fallback: number };
   variants: Array<{
     variant_id?: string;
     variant: string;
@@ -170,6 +186,7 @@ export interface BatchResult {
     impact_level: string;
     rank: number;
     key_effect?: string;
+    source?: string;
   }>;
   distribution: Record<string, number>;
 }
@@ -203,6 +220,18 @@ export class NetworkError extends Error {
   constructor(message: string) {
     super(message);
     this.name = 'NetworkError';
+  }
+}
+
+/**
+ * The Atlas answered, and the answer is that it does not hold this variant or
+ * region (not found, or outside its coverage). This is the only Atlas failure
+ * that source=auto may answer with live inference instead.
+ */
+export class AtlasNotAvailableError extends Error {
+  constructor(message: string) {
+    super(message);
+    this.name = 'AtlasNotAvailableError';
   }
 }
 
