@@ -5,12 +5,16 @@ import assert from 'node:assert/strict';
 
 import {
   ATLAS_DEFAULT_TOP_N,
+  ATLAS_MAX_LARGE_REGION_BP,
   ATLAS_MAX_REGION_BP,
   ATLAS_MAX_VARIANTS,
   atlasLookupVariantSchema,
   atlasLookupVariantsSchema,
   atlasScanRegionSchema,
   batchScoreSchema,
+  compareAllelesSchema,
+  modalityScreenSchema,
+  pathogenicityFilterSchema,
   validateInput,
   variantPredictionSchema,
 } from '../utils/validation.js';
@@ -91,19 +95,67 @@ test('atlas_lookup_variants is capped', () => {
   assert.equal(ok.variants.length, 3);
 });
 
-test('atlas_scan_region is capped and needs start before end', () => {
-  const base = { chromosome: 'chr17', start: 49209289 };
-  const ok = validateInput(atlasScanRegionSchema, { ...base, end: base.start + 2000 });
+const scanBase = { chromosome: 'chr17', start: 49209289 };
+
+test('atlas_scan_region accepts up to 10,000 bp by default', () => {
+  const ok = validateInput(atlasScanRegionSchema, { ...scanBase, end: scanBase.start + 2000 });
   assert.equal(ok.top_n, ATLAS_DEFAULT_TOP_N);
+  assert.equal(ok.allow_large_region, false);
+  assert.equal(ATLAS_MAX_REGION_BP, 10000);
+  validateInput(atlasScanRegionSchema, { ...scanBase, end: scanBase.start + ATLAS_MAX_REGION_BP });
+});
+
+test('a wider scan is refused unless the caller opts in, and the message says how', () => {
+  const wide = { ...scanBase, end: scanBase.start + ATLAS_MAX_REGION_BP + 1 };
+  assert.throws(() => validateInput(atlasScanRegionSchema, wide), /allow_large_region=true/);
+  assert.throws(
+    () => validateInput(atlasScanRegionSchema, { ...wide, allow_large_region: false }),
+    /10,000 bp/
+  );
+  const allowed = validateInput(atlasScanRegionSchema, { ...wide, allow_large_region: true });
+  assert.equal(allowed.allow_large_region, true);
+});
+
+test('even with the opt-in a scan stops at 50,000 bp', () => {
+  const end = scanBase.start + ATLAS_MAX_LARGE_REGION_BP;
+  validateInput(atlasScanRegionSchema, { ...scanBase, end, allow_large_region: true });
   assert.throws(
     () =>
-      validateInput(atlasScanRegionSchema, { ...base, end: base.start + ATLAS_MAX_REGION_BP + 1 }),
-    /at most/
+      validateInput(atlasScanRegionSchema, {
+        ...scanBase,
+        end: end + 1,
+        allow_large_region: true,
+      }),
+    /at most 50,000 bp/
   );
+});
+
+test('a scan needs start before end', () => {
   assert.throws(
-    () => validateInput(atlasScanRegionSchema, { ...base, end: base.start }),
+    () => validateInput(atlasScanRegionSchema, { ...scanBase, end: scanBase.start }),
     /greater than start/
   );
+});
+
+test('the filter threshold is an absolute quantile between 0 and 1', () => {
+  validateInput(pathogenicityFilterSchema, { variants: [apoe], threshold: 0.999 });
+  assert.throws(() => validateInput(pathogenicityFilterSchema, { variants: [apoe], threshold: 5 }));
+});
+
+test('live tools validate their inputs too', () => {
+  assert.throws(() => validateInput(modalityScreenSchema, { variants: [apoe], modality: 'x' }));
+  assert.throws(
+    () =>
+      validateInput(compareAllelesSchema, { chromosome: 'chr1', position: 5, ref: 'A', alts: [] }),
+    /At least one alternate/
+  );
+  const parsed = validateInput(compareAllelesSchema, {
+    chromosome: 'chr1',
+    position: 5,
+    ref: 'a',
+    alts: ['g', 'ACT'],
+  });
+  assert.deepEqual(parsed.alts, ['G', 'ACT']);
 });
 
 test('top_n cannot exceed the response cap', () => {

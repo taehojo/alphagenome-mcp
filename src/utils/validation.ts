@@ -38,15 +38,43 @@ const scorersSchema = z
   .optional();
 
 // ============================================================================
-// Variant Prediction Validation
+// Shared pieces
+// ============================================================================
+
+const variantShape = {
+  chromosome: chromosomeSchema,
+  position: positiveIntSchema,
+  ref: nucleotideSchema,
+  alt: nucleotideSchema,
+};
+
+const differentAlleles = {
+  check: (data: { ref: string; alt: string }) => data.ref !== data.alt,
+  message: { message: 'Reference and alternate alleles must be different' },
+};
+
+/** A variant of any kind: SNV, indel or multi-nucleotide. */
+export const variantSchema = z
+  .object({ ...variantShape, variant_id: z.string().optional() })
+  .refine(differentAlleles.check, differentAlleles.message);
+
+const tissueSchema = z.string().min(1).optional();
+
+/** Most variants one live-inference call accepts; each one runs the model. */
+export const LIVE_MAX_VARIANTS = 100;
+
+const liveVariantsSchema = z
+  .array(variantSchema)
+  .min(1, 'At least one variant is required')
+  .max(LIVE_MAX_VARIANTS, `Maximum ${LIVE_MAX_VARIANTS} variants allowed`);
+
+// ============================================================================
+// Tools that route between the Atlas and live inference
 // ============================================================================
 
 export const variantPredictionSchema = z
   .object({
-    chromosome: chromosomeSchema,
-    position: positiveIntSchema,
-    ref: nucleotideSchema,
-    alt: nucleotideSchema,
+    ...variantShape,
     output_types: z
       .array(
         z.enum([
@@ -61,60 +89,77 @@ export const variantPredictionSchema = z
         ])
       )
       .optional(),
-    tissue_type: z.string().optional(),
+    tissue_type: tissueSchema,
     source: sourceSchema,
     scorers: scorersSchema,
   })
-  .refine((data) => data.ref !== data.alt, {
-    message: 'Reference and alternate alleles must be different',
-  });
-
-// ============================================================================
-// Region Analysis Validation
-// ============================================================================
-
-export const regionAnalysisSchema = z
-  .object({
-    chromosome: chromosomeSchema,
-    start: positiveIntSchema,
-    end: positiveIntSchema,
-    analysis_types: z
-      .array(z.enum(['promoter', 'enhancer', 'silencer', 'tf_binding', 'chromatin_state']))
-      .optional(),
-    resolution: z.enum(['base', 'window']).optional(),
-  })
-  .refine((data) => data.end > data.start, {
-    message: 'End position must be greater than start position',
-  })
-  .refine((data) => data.end - data.start >= 1000, {
-    message: 'Region must be at least 1kb (1,000 bp)',
-  })
-  .refine((data) => data.end - data.start <= 1000000, {
-    message: 'Region must be at most 1Mb (1,000,000 bp)',
-  });
-
-// ============================================================================
-// Batch Scoring Validation
-// ============================================================================
+  .refine(differentAlleles.check, differentAlleles.message);
 
 export const batchScoreSchema = z.object({
-  variants: z
-    .array(
-      z.object({
-        chromosome: chromosomeSchema,
-        position: positiveIntSchema,
-        ref: nucleotideSchema,
-        alt: nucleotideSchema,
-        variant_id: z.string().optional(),
-      })
-    )
-    .min(1, 'At least one variant is required')
-    .max(100, 'Maximum 100 variants allowed'),
+  variants: liveVariantsSchema,
   scoring_metric: z.enum(['rna_seq', 'splice', 'regulatory_impact', 'combined']),
   top_n: z.number().int().min(1).max(100).optional().default(10),
-  include_interpretation: z.boolean().optional().default(false),
   source: sourceSchema,
   scorers: scorersSchema,
+});
+
+export const pathogenicityFilterSchema = z.object({
+  variants: liveVariantsSchema,
+  threshold: z
+    .number()
+    .min(0, 'threshold is an absolute quantile between 0 and 1')
+    .max(1, 'threshold is an absolute quantile between 0 and 1')
+    .optional(),
+  source: sourceSchema,
+  scorers: scorersSchema,
+});
+
+// ============================================================================
+// Live-inference tools
+// ============================================================================
+
+export const singleVariantSchema = z
+  .object({ ...variantShape, tissue_type: tissueSchema })
+  .refine(differentAlleles.check, differentAlleles.message);
+
+export const tissueSpecificSchema = z
+  .object({ ...variantShape, tissues: z.array(z.string().min(1)).max(10).optional() })
+  .refine(differentAlleles.check, differentAlleles.message);
+
+export const compareVariantsSchema = z.object({ variant1: variantSchema, variant2: variantSchema });
+
+export const compareProtectiveRiskSchema = z.object({
+  protective_variant: variantSchema,
+  risk_variant: variantSchema,
+});
+
+export const compareAllelesSchema = z.object({
+  chromosome: chromosomeSchema,
+  position: positiveIntSchema,
+  ref: nucleotideSchema,
+  alts: z.array(nucleotideSchema).min(1, 'At least one alternate allele is required').max(20),
+});
+
+export const gwasLocusSchema = z.object({
+  variants: liveVariantsSchema,
+  chromosome: z.string().optional(),
+  start: z.number().optional(),
+  end: z.number().optional(),
+});
+
+export const sameGeneSchema = z.object({
+  variants: liveVariantsSchema,
+  gene_name: z.string().min(1).optional(),
+});
+
+export const modalityScreenSchema = z.object({
+  variants: liveVariantsSchema,
+  modality: z.enum(['expression', 'splicing', 'tf_binding', 'chromatin']),
+});
+
+export const batchTissueSchema = z.object({
+  variants: liveVariantsSchema,
+  tissues: z.array(z.string().min(1)).min(1, 'At least one tissue is required').max(10),
 });
 
 // ============================================================================
@@ -124,8 +169,11 @@ export const batchScoreSchema = z.object({
 /** Most variants one atlas_lookup_variants call accepts. */
 export const ATLAS_MAX_VARIANTS = 500;
 
-/** Widest region one atlas_scan_region call accepts, in base pairs. */
-export const ATLAS_MAX_REGION_BP = 50000;
+/** Widest region atlas_scan_region accepts without being asked twice, in base pairs. */
+export const ATLAS_MAX_REGION_BP = 10000;
+
+/** Widest region atlas_scan_region accepts with allow_large_region, in base pairs. */
+export const ATLAS_MAX_LARGE_REGION_BP = 50000;
 
 /** Ranked rows returned by an Atlas tool unless the caller asks otherwise. */
 export const ATLAS_DEFAULT_TOP_N = 25;
@@ -157,26 +205,20 @@ const atlasVariantShape = {
   alt: singleBaseSchema,
 };
 
-export const atlasListScorersSchema = z.object({}).passthrough();
-
 export const atlasLookupVariantSchema = z
   .object({
     ...atlasVariantShape,
     scorers: scorersSchema,
     top_n: topNSchema,
   })
-  .refine((data) => data.ref !== data.alt, {
-    message: 'Reference and alternate alleles must be different',
-  });
+  .refine(differentAlleles.check, differentAlleles.message);
 
 export const atlasLookupVariantsSchema = z.object({
   variants: z
     .array(
       z
         .object({ ...atlasVariantShape, variant_id: z.string().optional() })
-        .refine((data) => data.ref !== data.alt, {
-          message: 'Reference and alternate alleles must be different',
-        })
+        .refine(differentAlleles.check, differentAlleles.message)
     )
     .min(1, 'At least one variant is required')
     .max(ATLAS_MAX_VARIANTS, `Maximum ${ATLAS_MAX_VARIANTS} variants per call`),
@@ -184,19 +226,28 @@ export const atlasLookupVariantsSchema = z.object({
   top_n: topNSchema,
 });
 
+const bp = (value: number) => value.toLocaleString('en-US');
+
 export const atlasScanRegionSchema = z
   .object({
     chromosome: chromosomeSchema,
     start: positiveIntSchema,
     end: positiveIntSchema,
+    allow_large_region: z.boolean().optional().default(false),
     scorers: scorersSchema,
     top_n: topNSchema,
   })
   .refine((data) => data.end > data.start, {
     message: 'End position must be greater than start position',
   })
-  .refine((data) => data.end - data.start <= ATLAS_MAX_REGION_BP, {
-    message: `Region must be at most ${ATLAS_MAX_REGION_BP.toLocaleString('en-US')} bp`,
+  .refine((data) => data.end - data.start <= ATLAS_MAX_LARGE_REGION_BP, {
+    message: `Region must be at most ${bp(ATLAS_MAX_LARGE_REGION_BP)} bp. Scan it in pieces.`,
+  })
+  .refine((data) => data.allow_large_region || data.end - data.start <= ATLAS_MAX_REGION_BP, {
+    message:
+      `Region must be at most ${bp(ATLAS_MAX_REGION_BP)} bp. A scan is one API request per 32 bp under a ` +
+      `requests-per-minute quota, so a larger scan can take minutes and may come back incomplete. ` +
+      `Pass allow_large_region=true to scan up to ${bp(ATLAS_MAX_LARGE_REGION_BP)} bp, or scan the region in pieces.`,
   });
 
 // ============================================================================

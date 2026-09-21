@@ -5,24 +5,20 @@ import path from 'path';
 import { fileURLToPath } from 'url';
 import { getBridgeTimeoutMs, getPythonCandidates } from './utils/config.js';
 import {
-  VariantPredictionParams,
-  RegionAnalysisParams,
-  BatchScoreParams,
-  VariantResult,
-  RegionResult,
-  BatchResult,
   ApiKeyError,
   RateLimitError,
   ValidationError,
   NetworkError,
   AtlasNotAvailableError,
   ApiError,
-  AtlasBatchResult,
-  AtlasRegionResult,
-  AtlasScorerList,
-  AtlasVariantQuery,
-  AtlasVariantResult,
+  RankedVariants,
+  RegionScan,
+  ScoreOptions,
+  ScorerList,
+  VariantQuery,
+  VariantScores,
 } from './types.js';
+import type { ResolvedSource } from './routing.js';
 
 // Re-export error classes for use in index.ts
 export { ApiKeyError, RateLimitError, ValidationError, NetworkError, ApiError } from './types.js';
@@ -245,387 +241,88 @@ export class AlphaGenomeClient {
     });
   }
 
-  /**
-   * Predict the regulatory impact of a genetic variant
-   *
-   * @param params - Variant prediction parameters
-   * @returns Promise resolving to variant prediction results
-   */
-  async predictVariant(params: VariantPredictionParams): Promise<VariantResult> {
-    try {
-      const result = await this.callPythonBridge<VariantResult>('predict_variant', {
-        chromosome: params.chromosome,
-        position: params.position,
-        reference_bases: params.ref,
-        alternate_bases: params.alt,
-        output_types: params.output_types,
-        tissue_type: params.tissue_type || 'brain',
-      });
-
-      return result;
-    } catch (error) {
-      rethrow(error, 'Variant prediction');
-    }
-  }
+  private scorerList: ScorerList | null = null;
 
   /**
-   * Analyze a genomic region for regulatory elements
-   *
-   * @param params - Region analysis parameters
-   * @returns Promise resolving to region analysis results
-   */
-  async analyzeRegion(params: RegionAnalysisParams): Promise<RegionResult> {
-    try {
-      const result = await this.callPythonBridge<RegionResult>('analyze_region', {
-        chromosome: params.chromosome,
-        start: params.start,
-        end: params.end,
-        analysis_types: params.analysis_types,
-        resolution: params.resolution,
-      });
-
-      return result;
-    } catch (error) {
-      rethrow(error, 'Region analysis');
-    }
-  }
-
-  /**
-   * Score multiple variants and rank by impact
-   *
-   * @param params - Batch scoring parameters
-   * @returns Promise resolving to batch scoring results
-   */
-  async batchScore(params: BatchScoreParams): Promise<BatchResult> {
-    try {
-      const result = await this.callPythonBridge<BatchResult>('batch_score', {
-        variants: params.variants,
-        scoring_metric: params.scoring_metric,
-        top_n: params.top_n,
-      });
-
-      return result;
-    } catch (error) {
-      rethrow(error, 'Batch scoring');
-    }
-  }
-
-  /**
-   * Assess pathogenicity of a variant
-   */
-  async assessPathogenicity(params: VariantPredictionParams): Promise<any> {
-    try {
-      return await this.callPythonBridge('assess_pathogenicity', {
-        chromosome: params.chromosome,
-        position: params.position,
-        ref: params.ref,
-        alt: params.alt,
-        tissue_type: params.tissue_type,
-      });
-    } catch (error) {
-      rethrow(error, 'Pathogenicity assessment');
-    }
-  }
-
-  /**
-   * Predict tissue-specific effects
-   */
-  async predictTissueSpecific(params: any): Promise<any> {
-    try {
-      return await this.callPythonBridge('predict_tissue_specific', params);
-    } catch (error) {
-      rethrow(error, 'Tissue-specific prediction');
-    }
-  }
-
-  /**
-   * Compare two variants
-   */
-  async compareVariants(params: any): Promise<any> {
-    try {
-      return await this.callPythonBridge('compare_variants', params);
-    } catch (error) {
-      rethrow(error, 'Variant comparison');
-    }
-  }
-
-  /**
-   * Predict splice impact
-   */
-  async predictSpliceImpact(params: VariantPredictionParams): Promise<any> {
-    try {
-      return await this.callPythonBridge('predict_splice_impact', {
-        chromosome: params.chromosome,
-        position: params.position,
-        ref: params.ref,
-        alt: params.alt,
-        tissue_type: params.tissue_type,
-      });
-    } catch (error) {
-      rethrow(error, 'Splice impact prediction');
-    }
-  }
-
-  /**
-   * Predict expression impact
-   */
-  async predictExpressionImpact(params: VariantPredictionParams): Promise<any> {
-    try {
-      return await this.callPythonBridge('predict_expression_impact', {
-        chromosome: params.chromosome,
-        position: params.position,
-        ref: params.ref,
-        alt: params.alt,
-        tissue_type: params.tissue_type,
-      });
-    } catch (error) {
-      rethrow(error, 'Expression impact prediction');
-    }
-  }
-
-  /**
-   * Analyze GWAS locus
-   */
-  async analyzeGwasLocus(params: any): Promise<any> {
-    try {
-      return await this.callPythonBridge('analyze_gwas_locus', params);
-    } catch (error) {
-      rethrow(error, 'GWAS locus analysis');
-    }
-  }
-
-  /**
-   * Compare alleles
-   */
-  async compareAlleles(params: any): Promise<any> {
-    try {
-      return await this.callPythonBridge('compare_alleles', params);
-    } catch (error) {
-      rethrow(error, 'Allele comparison');
-    }
-  }
-
-  /**
-   * Batch tissue comparison
-   */
-  async batchTissueComparison(params: any): Promise<any> {
-    try {
-      return await this.callPythonBridge('batch_tissue_comparison', params);
-    } catch (error) {
-      rethrow(error, 'Batch tissue comparison');
-    }
-  }
-
-  /**
-   * Predict TF binding impact
-   */
-  async predictTfBindingImpact(params: VariantPredictionParams): Promise<any> {
-    try {
-      return await this.callPythonBridge('predict_tf_binding_impact', params);
-    } catch (error) {
-      rethrow(error, 'TF binding impact prediction');
-    }
-  }
-
-  /**
-   * Predict chromatin impact
-   */
-  async predictChromatinImpact(params: VariantPredictionParams): Promise<any> {
-    try {
-      return await this.callPythonBridge('predict_chromatin_impact', params);
-    } catch (error) {
-      rethrow(error, 'Chromatin impact prediction');
-    }
-  }
-
-  /**
-   * Compare protective vs risk variants
-   */
-  async compareProtectiveRisk(params: any): Promise<any> {
-    try {
-      return await this.callPythonBridge('compare_protective_risk', params);
-    } catch (error) {
-      rethrow(error, 'Protective vs risk comparison');
-    }
-  }
-
-  /**
-   * Filter variants by pathogenicity threshold
-   */
-  async batchPathogenicityFilter(params: any): Promise<any> {
-    try {
-      return await this.callPythonBridge('batch_pathogenicity_filter', params);
-    } catch (error) {
-      rethrow(error, 'Batch pathogenicity filter');
-    }
-  }
-
-  /**
-   * Compare variants in the same gene
-   */
-  async compareVariantsSameGene(params: any): Promise<any> {
-    try {
-      return await this.callPythonBridge('compare_variants_same_gene', params);
-    } catch (error) {
-      rethrow(error, 'Same-gene variant comparison');
-    }
-  }
-
-  /**
-   * Predict allele-specific effects
-   */
-  async predictAlleleSpecificEffects(params: VariantPredictionParams): Promise<any> {
-    try {
-      return await this.callPythonBridge('predict_allele_specific_effects', params);
-    } catch (error) {
-      rethrow(error, 'Allele-specific effects prediction');
-    }
-  }
-
-  /**
-   * Annotate regulatory context
-   */
-  async annotateRegulatoryContext(params: VariantPredictionParams): Promise<any> {
-    try {
-      return await this.callPythonBridge('annotate_regulatory_context', params);
-    } catch (error) {
-      rethrow(error, 'Regulatory context annotation');
-    }
-  }
-
-  /**
-   * Batch modality screen
-   */
-  async batchModalityScreen(params: any): Promise<any> {
-    try {
-      return await this.callPythonBridge('batch_modality_screen', params);
-    } catch (error) {
-      rethrow(error, 'Batch modality screen');
-    }
-  }
-
-  /**
-   * Generate comprehensive variant report
-   */
-  async generateVariantReport(params: VariantPredictionParams): Promise<any> {
-    try {
-      return await this.callPythonBridge('generate_variant_report', params);
-    } catch (error) {
-      rethrow(error, 'Variant report generation');
-    }
-  }
-
-  /**
-   * Explain variant impact in human-readable format
-   */
-  async explainVariantImpact(params: VariantPredictionParams): Promise<any> {
-    try {
-      return await this.callPythonBridge('explain_variant_impact', params);
-    } catch (error) {
-      rethrow(error, 'Variant impact explanation');
-    }
-  }
-
-  // ==========================================================================
-  // AlphaGenome Atlas: precomputed scores, no model call
-  // ==========================================================================
-
-  private atlasScorers: AtlasScorerList | null = null;
-
-  /**
-   * Seconds since the epoch by which a long Atlas call should stop and return
-   * what it has. Leaves room before the bridge timeout so that a slow scan
+   * Seconds since the epoch by which a long call should stop and return what
+   * it has. Leaves room before the bridge timeout so that a slow scan or batch
    * ends with a partial, labelled result instead of a killed process.
    */
-  private static atlasDeadline(): number {
+  private static deadline(): number {
     const budgetMs = Math.max(10000, getBridgeTimeoutMs() - 20000);
     return (Date.now() + budgetMs) / 1000;
   }
 
   /**
+   * Scores of one variant, from the Atlas (precomputed) or from live inference
+   * (score_variant). Both come back in the same shape.
+   */
+  async scoreVariant(
+    source: ResolvedSource,
+    variant: VariantQuery,
+    options: ScoreOptions = {}
+  ): Promise<VariantScores> {
+    const action = source === 'atlas' ? 'atlas_lookup_variant' : 'live_score_variant';
+    try {
+      return await this.callPythonBridge<VariantScores>(action, { ...variant, ...options });
+    } catch (error) {
+      rethrow(error, source === 'atlas' ? 'Atlas variant lookup' : 'Live variant scoring');
+    }
+  }
+
+  /**
+   * Scores of many variants from one source, ranked.
+   */
+  async scoreVariants(
+    source: ResolvedSource,
+    variants: VariantQuery[],
+    options: ScoreOptions = {}
+  ): Promise<RankedVariants> {
+    const action = source === 'atlas' ? 'atlas_lookup_variants' : 'live_score_variants';
+    try {
+      return await this.callPythonBridge<RankedVariants>(action, {
+        variants,
+        ...options,
+        deadline_epoch: AlphaGenomeClient.deadline(),
+      });
+    } catch (error) {
+      rethrow(error, source === 'atlas' ? 'Atlas batch lookup' : 'Live batch scoring');
+    }
+  }
+
+  /**
    * Scorers available in the Atlas. Fetched once per server session.
    */
-  async atlasListScorers(): Promise<AtlasScorerList> {
-    if (this.atlasScorers) {
-      return this.atlasScorers;
+  async listScorers(): Promise<ScorerList> {
+    if (this.scorerList) {
+      return this.scorerList;
     }
     try {
-      this.atlasScorers = await this.callPythonBridge<AtlasScorerList>('atlas_list_scorers', {});
-      return this.atlasScorers;
+      this.scorerList = await this.callPythonBridge<ScorerList>('atlas_list_scorers', {});
+      return this.scorerList;
     } catch (error) {
       rethrow(error, 'Atlas scorer listing');
     }
   }
 
   /**
-   * Precomputed scores of one single-nucleotide variant.
+   * Every single-nucleotide substitution in a region, ranked (Atlas only).
    */
-  async atlasLookupVariant(
-    params: AtlasVariantQuery & { scorers?: string[]; top_n?: number }
-  ): Promise<AtlasVariantResult> {
-    try {
-      return await this.callPythonBridge<AtlasVariantResult>('atlas_lookup_variant', params);
-    } catch (error) {
-      rethrow(error, 'Atlas variant lookup');
-    }
-  }
-
-  /**
-   * Precomputed scores of many single-nucleotide variants, ranked.
-   */
-  async atlasLookupVariants(params: {
-    variants: AtlasVariantQuery[];
-    scorers?: string[];
-    top_n?: number;
-  }): Promise<AtlasBatchResult> {
-    try {
-      return await this.callPythonBridge<AtlasBatchResult>('atlas_lookup_variants', {
-        ...params,
-        deadline_epoch: AlphaGenomeClient.atlasDeadline(),
-      });
-    } catch (error) {
-      rethrow(error, 'Atlas batch lookup');
-    }
-  }
-
-  /**
-   * Every single-nucleotide substitution in a region, ranked.
-   */
-  async atlasScanRegion(params: {
+  async scanRegion(params: {
     chromosome: string;
     start: number;
     end: number;
+    allow_large_region?: boolean;
     scorers?: string[];
     top_n?: number;
-  }): Promise<AtlasRegionResult> {
+  }): Promise<RegionScan> {
     try {
-      return await this.callPythonBridge<AtlasRegionResult>('atlas_scan_region', {
+      return await this.callPythonBridge<RegionScan>('atlas_scan_region', {
         ...params,
-        deadline_epoch: AlphaGenomeClient.atlasDeadline(),
+        deadline_epoch: AlphaGenomeClient.deadline(),
       });
     } catch (error) {
       rethrow(error, 'Atlas region scan');
-    }
-  }
-
-  /**
-   * Test the connection to AlphaGenome API
-   *
-   * @returns Promise resolving to true if connection successful
-   */
-  async testConnection(): Promise<boolean> {
-    try {
-      // Test with a simple variant prediction
-      await this.predictVariant({
-        chromosome: 'chr1',
-        position: 1000000,
-        ref: 'A',
-        alt: 'T',
-      });
-      return true;
-    } catch (error) {
-      console.error('Connection test failed:', error);
-      return false;
     }
   }
 }
