@@ -1,7 +1,7 @@
 {
   "name": "@jolab/alphagenome-mcp",
   "version": "0.3.0",
-  "description": "AlphaGenome as a tool for Claude agents: an MCP server that answers single-nucleotide variants from the precomputed AlphaGenome Atlas and everything else with live inference, and always states the source",
+  "description": "AlphaGenome as a tool for Claude agents: an MCP server that answers single-nucleotide variants from the precomputed AlphaGenome Atlas and indels and other variants with live inference, and always states the source",
   "type": "module",
   "main": "build/index.js",
   "types": "build/index.d.ts",
@@ -31,7 +31,9 @@
     "prepublishOnly": "npm run lint",
     "clean": "rm -rf build/",
     "typecheck": "tsc --noEmit",
-    "test:python": "python -m unittest discover -s scripts/tests"
+    "test:python": "python -m unittest discover -s scripts/tests",
+    "docs:api": "npm run build && node docs/generate-api.mjs",
+    "docs:api:check": "node docs/generate-api.mjs --check"
   },
   "keywords": [
     "mcp",

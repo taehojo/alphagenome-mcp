@@ -35,8 +35,9 @@ import * as tools from './variant-tools.js';
  * AlphaGenome MCP Server
  *
  * AlphaGenome as a tool for Claude agents: the precomputed AlphaGenome Atlas
- * for single-nucleotide variants, live inference for everything else, chosen
- * automatically, with the source stated on every result.
+ * for single-nucleotide variants, live inference for indels and other variants
+ * the Atlas cannot precompute, chosen automatically, with the source stated
+ * on every result.
  *
  * Talks to the AlphaGenome Python SDK through a subprocess bridge.
  */

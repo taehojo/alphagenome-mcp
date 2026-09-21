@@ -39,6 +39,9 @@ jobs:
       - name: Unit tests
         run: npm test
 
+      - name: Tool reference is up to date
+        run: npm run docs:api:check
+
       - name: Setup Python
         uses: actions/setup-python@v5
         with:

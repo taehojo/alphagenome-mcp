@@ -12,14 +12,14 @@
 
 AlphaGenome as a tool for Claude agents. A Model Context Protocol (MCP) server that lets an agent turn a researcher's question into an AlphaGenome analysis.
 
-> **한국어 요약:** AlphaGenome을 Claude 에이전트의 도구로 만드는 MCP 서버입니다. 에이전트가 연구자의 질문을 분석으로 바꿉니다. 단일 염기 변이는 미리 계산된 AlphaGenome Atlas에서 즉시 조회하고, indel, 다염기 변이, 변이 조합, 사용자 서열은 실시간 추론으로 처리합니다. 어느 쪽에서 답했는지 항상 결과에 표시합니다. [한국어 전체 문서 보기](#korean)
+> **한국어 요약:** AlphaGenome을 Claude 에이전트의 도구로 만드는 MCP 서버입니다. 에이전트가 연구자의 질문을 분석으로 바꿉니다. 단일 염기 변이는 미리 계산된 AlphaGenome Atlas에서 즉시 조회하고, indel을 비롯해 Atlas가 미리 계산해 둘 수 없는 변이는 실시간 추론으로 처리합니다. 어느 쪽에서 답했는지 항상 결과에 표시합니다. [한국어 전체 문서 보기](#korean)
 
 ## Overview
 
 A researcher asks a question; the agent decides which AlphaGenome calls answer it, runs them, and reads the results back. This server gives the agent the two ways AlphaGenome can be asked:
 
 - **The AlphaGenome Atlas** for single-nucleotide variants. The Atlas holds precomputed predictions for every possible single-nucleotide substitution in the human genome, so a lookup answers in seconds and a whole region can be ranked without running the model.
-- **Live inference** for everything the Atlas does not hold: indels, multi-nucleotide variants, combinations of variants, custom sequences. This release exposes live scoring of single variants of any kind (single-nucleotide, indel, multi-nucleotide); combinations of variants and custom sequences are not exposed as tools yet.
+- **Live inference** for indels and other variants the Atlas cannot precompute.
 
 The server chooses between the two automatically, and **every result states its source** (`source: atlas` or `source: live`), so a precomputed score is never mistaken for a fresh model call or the other way round.
 
@@ -98,7 +98,7 @@ AlphaGenome MCP Server implements a multi-tier architecture:
 
 | | AlphaGenome Atlas | Live inference |
 |---|---|---|
-| What it answers | Single-nucleotide substitutions on hg38 (chr1-22, chrX, chrY) | Anything: indels, multi-nucleotide variants, combinations, custom sequences |
+| What it answers | Single-nucleotide substitutions on hg38 (chr1-22, chrX, chrY) | Any single variant: single-nucleotide, indel, multi-nucleotide |
 | How | Looks up precomputed scores | Runs the AlphaGenome model |
 | Typical time | 2-5 seconds per variant, about 7 seconds for a 2,000 bp region | 30-60 seconds per variant |
 
@@ -543,10 +543,20 @@ scripts/
 ```bash
 npm test               # Build, then run the TypeScript unit tests (no API key needed)
 npm run test:python    # Python unit tests for the shared summarizer (numpy and pandas only)
+npm run docs:api       # Regenerate docs/API.md from the tool definitions in src/tools.ts
 npm run lint           # ESLint check
 npm run typecheck      # TypeScript type checking
 npm run build          # Compile to build/
 ```
+
+## Roadmap
+
+Not in this release, and not promised by any tool above:
+
+- **Combinations of variants**: scoring several variants together on one haplotype, rather than one at a time.
+- **Custom sequences**: predictions for a sequence the caller supplies, rather than a variant on the reference genome.
+
+Both need live inference and neither can be precomputed, so they fit the same design: the Atlas where it can answer, the model where it cannot, and the source on every result.
 
 ## Citation
 
@@ -609,7 +619,7 @@ See [LICENSE](LICENSE) file for details.
 연구자가 질문을 하면, 에이전트가 그 질문에 답하는 AlphaGenome 호출을 정하고 실행한 뒤 결과를 읽어 줍니다. 이 서버는 AlphaGenome에 물어볼 수 있는 두 가지 방법을 에이전트에게 제공합니다.
 
 - **AlphaGenome Atlas**: 단일 염기 변이용. Atlas에는 인간 유전체의 모든 단일 염기 치환에 대한 예측이 미리 계산되어 있어, 조회는 몇 초면 끝나고 구간 전체의 순위도 모델을 돌리지 않고 매길 수 있습니다.
-- **실시간 추론**: Atlas에 없는 모든 것. indel, 다염기 변이, 변이 조합, 사용자 서열. 이번 릴리스는 모든 종류의 단일 변이(단일 염기, indel, 다염기)에 대한 실시간 점수화를 제공하며, 변이 조합과 사용자 서열은 아직 도구로 제공하지 않습니다.
+- **실시간 추론**: indel을 비롯해 Atlas가 미리 계산해 둘 수 없는 변이용.
 
 서버가 둘 중 하나를 자동으로 고르며, **모든 결과에 출처를 표시합니다** (`source: atlas` 또는 `source: live`). 미리 계산된 점수와 방금 돌린 모델 결과가 서로 혼동되지 않습니다.
 
@@ -693,7 +703,7 @@ See [LICENSE](LICENSE) file for details.
 
 | | AlphaGenome Atlas | 실시간 추론 |
 |---|---|---|
-| 답할 수 있는 것 | hg38의 단일 염기 치환 (chr1-22, chrX, chrY) | 전부: indel, 다염기 변이, 변이 조합, 사용자 서열 |
+| 답할 수 있는 것 | hg38의 단일 염기 치환 (chr1-22, chrX, chrY) | 모든 종류의 단일 변이: 단일 염기, indel, 다염기 |
 | 방식 | 미리 계산된 점수 조회 | AlphaGenome 모델 실행 |
 | 소요 시간 | 변이당 2-5초, 2,000 bp 구간 약 7초 | 변이당 30-60초 |
 
@@ -888,6 +898,15 @@ chr17:49210289 C>T, scorer별 가장 강한 트랙:
 - **실시간 추론**: 변이당 30-60초
 - **분석 양식**: 11가지 (RNA-seq, CAGE, PRO-cap, 스플라이스 사이트, DNase, ATAC, 히스톤 변형, 전사인자 결합, 접촉 맵)
 
+## 로드맵
+
+이번 릴리스에는 없으며, 위의 어떤 도구도 제공하지 않는 기능입니다.
+
+- **변이 조합**: 여러 변이를 하나씩이 아니라 하나의 haplotype 위에서 함께 점수화
+- **사용자 서열**: 참조 유전체 위의 변이가 아니라, 사용자가 제공한 서열에 대한 예측
+
+둘 다 실시간 추론이 필요하고 미리 계산해 둘 수 없습니다. 그래서 같은 설계에 들어맞습니다. Atlas가 답할 수 있으면 Atlas, 아니면 모델, 그리고 모든 결과에 출처 표시.
+
 ## 인용
 
 이 소프트웨어를 연구에 사용하신다면 다음과 같이 인용해주세요:
@@ -914,7 +933,7 @@ AlphaGenome 모델:
 
 ## 상세 문서
 
-전체 도구 목록, 상세 사용 예제, API 응답 형식, 개발 가이드는 [영문 문서](#english)를 참고하세요.
+전체 도구 목록, 상세 사용 예제, 개발 가이드는 [영문 문서](#english)를, 도구별 파라미터는 [도구 레퍼런스](docs/API.md)를 참고하세요.
 
 ## 라이선스
 
