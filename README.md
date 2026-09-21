@@ -633,6 +633,12 @@ Both need live inference and neither can be precomputed, so they fit the same de
 
 [![From a microglia gene to a variant map in about 60 seconds: the ABI3 question in Alzheimer's disease, the traditional pipeline next to vibe coding with the AlphaGenome MCP server, and the Python script that one sentence replaces](docs/media/explainer.png)](docs/media/explainer.png)
 
+### AlphaGenome at study scale
+
+**[Rare variants and AlphaGenome-predicted regulatory impact in 85 Alzheimer's disease genes](https://taehojo.github.io/rarevariants/)**: an interactive browser of the rare variants (MAF < 1%) in 85 AD-associated genes from ADSP whole-genome sequencing, scored with AlphaGenome across eight regulatory modalities and compared with case-control allele frequencies in 24,595 ADSP R4 participants, with an independent assessment in 11,545 ADSP R5 participants (Jo et al., manuscript under review). Code and the 9,943-variant analysis table: [taehojo/rarevariants](https://github.com/taehojo/rarevariants).
+
+The scores in that study were computed with the AlphaGenome Python SDK directly, not with this server, and before its 0.3.0 scoring. They are not output of this server.
+
 ## Citation
 
 If you use this software in your research, please cite:
