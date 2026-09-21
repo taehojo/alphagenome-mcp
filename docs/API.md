@@ -1,321 +1,388 @@
-# AlphaGenome MCP Server - API Documentation
+# AlphaGenome MCP Server: Tool Reference
 
-> **Outdated.** This page describes version 0.1 and has not been updated: it documents a tool that no longer exists (`analyze_region`) and output fields (impact levels, clinical interpretation, recommendations) that were removed in 0.3.0. The current tools, parameters and outputs are in the [README](../README.md) and the [CHANGELOG](../CHANGELOG.md). Results are model predictions for research prioritization, not clinical classifications.
+Generated from `src/tools.ts` by `npm run docs:api`; do not edit by hand.
 
-⚠️ **MOCK MODE**: Currently uses simulated data. Real AlphaGenome API integration pending.
+24 tools. Every result states its source (`atlas` or `live`). Results are AlphaGenome model predictions for research prioritization, not clinical classifications: scores and calibrated quantiles are reported as returned, and no tool makes a pathogenic/benign call, assigns a risk label or states a percent change. Responses are ranked summaries, never a full score matrix, capped at `top_n` rows and 40,000 characters.
 
-## Available Tools
+Installation, environment variables, routing rules, default scorers and worked examples are in the [README](../README.md).
 
-### 1. predict_variant_effect
+## Contents
 
-Predict the regulatory impact of a single genetic variant.
+- Tools that choose between the Atlas and live inference: [predict_variant_effect](#predict_variant_effect), [batch_score_variants](#batch_score_variants), [assess_pathogenicity](#assess_pathogenicity), [batch_pathogenicity_filter](#batch_pathogenicity_filter), [generate_variant_report](#generate_variant_report), [explain_variant_impact](#explain_variant_impact)
+- Live-inference tools: [predict_tissue_specific](#predict_tissue_specific), [compare_variants](#compare_variants), [predict_splice_impact](#predict_splice_impact), [predict_expression_impact](#predict_expression_impact), [analyze_gwas_locus](#analyze_gwas_locus), [compare_alleles](#compare_alleles), [batch_tissue_comparison](#batch_tissue_comparison), [predict_tf_binding_impact](#predict_tf_binding_impact), [predict_chromatin_impact](#predict_chromatin_impact), [compare_protective_risk](#compare_protective_risk), [compare_variants_same_gene](#compare_variants_same_gene), [predict_allele_specific_effects](#predict_allele_specific_effects), [annotate_regulatory_context](#annotate_regulatory_context), [batch_modality_screen](#batch_modality_screen)
+- AlphaGenome Atlas tools: [atlas_list_scorers](#atlas_list_scorers), [atlas_lookup_variant](#atlas_lookup_variant), [atlas_lookup_variants](#atlas_lookup_variants), [atlas_scan_region](#atlas_scan_region)
 
-**Tool Name**: `predict_variant_effect`
+## Tools that choose between the Atlas and live inference
 
-**Input Parameters**:
+A single-nucleotide variant is answered from the precomputed AlphaGenome Atlas; an indel or multi-nucleotide variant runs live inference. Override with `source`.
 
-| Parameter | Type | Required | Description |
-|-----------|------|----------|-------------|
-| `chromosome` | string | Yes | Chromosome (chr1-chr22, chrX, chrY) |
-| `position` | number | Yes | Genomic position (1-based, positive integer) |
-| `ref` | string | Yes | Reference allele (A, T, G, or C) |
-| `alt` | string | Yes | Alternate allele (A, T, G, or C) |
-| `output_types` | string[] | No | Specific analyses to run |
-| `tissue_type` | string | No | Tissue context (UBERON term) |
+### predict_variant_effect
 
-**Output Types** (optional):
-- `rna_seq`: RNA expression changes
-- `cage`: CAGE-seq signals
-- `splice`: Splicing predictions
-- `histone`: Histone modification changes
-- `tf_binding`: Transcription factor binding alterations
-- `dnase`: DNase hypersensitivity
-- `atac`: ATAC-seq signals
-- `contact_map`: 3D chromatin interactions
+Predicted regulatory effect of a genetic variant, per modality: the strongest tracks of each scorer (expression, transcription start, chromatin accessibility, histone marks, transcription factor binding, splicing), each with its score, calibrated quantile, gene, tissue or cell type, and assay. From the Atlas the AlphaGenome Variant Impact (AVI) score is included.
 
-**Example Usage**:
-```
-"Use AlphaGenome to analyze the variant chr17:41234567A>T"
-```
-
-**Output**: Markdown report with:
-- Regulatory impact summary table
-- RNA expression analysis
-- Splicing predictions
-- TF binding site disruptions
-- Clinical interpretation
-- Recommendations
-
----
-
-### 2. analyze_region
-
-Identify regulatory elements in a genomic region.
-
-**Tool Name**: `analyze_region`
-
-**Input Parameters**:
+**Source behavior.** `source=auto` (default): Atlas for single-nucleotide variants, live inference otherwise; falls back to live only when the Atlas does not hold the variant, and labels it `live (atlas fallback: <reason>)`. `source=atlas`: Atlas only, never falls back. `source=live`: always runs the model.
 
 | Parameter | Type | Required | Description |
-|-----------|------|----------|-------------|
-| `chromosome` | string | Yes | Chromosome (chr1-chr22, chrX, chrY) |
-| `start` | number | Yes | Start position (1-based) |
-| `end` | number | Yes | End position (must be > start + 1000) |
-| `analysis_types` | string[] | No | Specific element types to find |
-| `resolution` | string | No | "base" (1bp) or "window" (128bp) |
+|---|---|---|---|
+| `chromosome` | string | yes | Chromosome (chr1-chr22, chrX, chrY) |
+| `position` | number | yes | Genomic position (1-based, hg38) (min 1) |
+| `ref` | string | yes | Reference allele (A, C, G, T; more than one base for an indel) |
+| `alt` | string | yes | Alternate allele (A, C, G, T; more than one base for an indel) |
+| `tissue_type` | string | no | Optional: keep only the tracks of one tissue or cell type. A name (brain, neuron, blood, liver, heart, lung, kidney) or an ontology CURIE (e.g., UBERON:0000955, CL:0000540). Default: all tissues. |
+| `output_types` | array of `rna_seq` \| `cage` \| `splice` \| `histone` \| `tf_binding` \| `dnase` \| `atac` \| `contact_map` | no | Optional: modalities to report (default: one scorer per modality) |
+| `source` | `auto` \| `atlas` \| `live` | no | Optional: where the answer comes from (default: auto). auto = the precomputed AlphaGenome Atlas for single-nucleotide substitutions, live inference for everything else (indels, multi-nucleotide variants); falls back to live only when the Atlas does not hold the variant. atlas = Atlas only, errors instead of falling back. live = always run the model. The result always states which source answered. |
+| `scorers` | array of string | no | Optional: scorer names to use instead of the defaults. Names come from atlas_list_scorers and are the same for both sources, except the AVI scorers, which the Atlas alone serves. |
 
-**Analysis Types** (optional):
-- `promoter`: Promoter regions
-- `enhancer`: Enhancer elements
-- `silencer`: Silencer regions
-- `tf_binding`: TF binding sites
-- `chromatin_state`: Chromatin state annotations
+Example: "Analyze chr19:44908684 T>C with AlphaGenome"
 
-**Constraints**:
-- Minimum region size: 1kb (1,000 bp)
-- Maximum region size: 1Mb (1,000,000 bp)
-- Optimal range: 10kb - 100kb
+### batch_score_variants
 
-**Example Usage**:
-```
-"Find regulatory elements in chr11:5225464-5227071"
-```
+Score up to 100 variants and rank them by predicted effect.
 
-**Output**: Markdown report with:
-- Promoter locations and scores
-- Enhancer positions and target genes
-- TF binding site catalog
-- Chromatin state map
+Each variant is routed on its own: single-nucleotide variants to the Atlas, the rest to live inference. A mixed batch comes back as two separately ranked groups, because the Atlas group is ranked by the AVI score and live inference has no AVI score; the two must not be compared. The result reports how many variants came from each source and how many fell back.
 
----
+Scoring metric (used when `scorers` is not given): rna_seq = RNA_SEQ, splice = SPLICE_SITES, regulatory_impact and combined = AVI_SCORE from the Atlas and every modality (ranked by the largest absolute quantile) from live inference.
 
-### 3. batch_score_variants
-
-Score and prioritize multiple variants.
-
-**Tool Name**: `batch_score_variants`
-
-**Input Parameters**:
+**Source behavior.** `source=auto` (default): Atlas for single-nucleotide variants, live inference otherwise; falls back to live only when the Atlas does not hold the variant, and labels it `live (atlas fallback: <reason>)`. `source=atlas`: Atlas only, never falls back. `source=live`: always runs the model.
 
 | Parameter | Type | Required | Description |
-|-----------|------|----------|-------------|
-| `variants` | Variant[] | Yes | List of 1-100 variants |
-| `scoring_metric` | string | Yes | Metric for scoring |
-| `top_n` | number | No | Number of top variants to return (default: 10) |
-| `include_interpretation` | boolean | No | Include detailed interpretation (default: false) |
+|---|---|---|---|
+| `variants` | array of variant objects | yes | Variants to score (1-100) (at least 1, at most 100) Fields: `chromosome`, `position`, `ref`, `alt`, `variant_id` (optional). |
+| `scoring_metric` | `rna_seq` \| `splice` \| `regulatory_impact` \| `combined` | yes | What to rank by |
+| `top_n` | number | no | Variants to return per group (default: 10, max: 100) (min 1, max 100) |
+| `source` | `auto` \| `atlas` \| `live` | no | Optional: where the answer comes from (default: auto). auto = the precomputed AlphaGenome Atlas for single-nucleotide substitutions, live inference for everything else (indels, multi-nucleotide variants); falls back to live only when the Atlas does not hold the variant. atlas = Atlas only, errors instead of falling back. live = always run the model. The result always states which source answered. |
+| `scorers` | array of string | no | Optional: scorer names to use instead of the defaults. Names come from atlas_list_scorers and are the same for both sources, except the AVI scorers, which the Atlas alone serves. |
 
-**Variant Object**:
-```typescript
-{
-  chromosome: string;
-  position: number;
-  ref: string;
-  alt: string;
-  variant_id?: string;  // Optional: e.g., "rs12345"
-}
-```
+Example: "Score these 50 variants and show me the top 10 by predicted effect"
 
-**Scoring Metrics**:
-- `rna_seq`: Rank by gene expression changes
-- `splice`: Rank by splicing impact
-- `regulatory_impact`: Combined regulatory score
-- `combined`: All metrics weighted
+### assess_pathogenicity
 
-**Example Usage**:
-```
-"Score these variants by regulatory impact:
-- chr7:117199563C>T
-- chr13:32910000G>A
-- chr19:1220000A>C
-Show me the top 3"
-```
+Predicted effect size of a variant across modalities, for prioritization. The tool name is kept for compatibility: it does NOT classify a variant as pathogenic or benign, and `classification` is always null.
 
-**Output**: Markdown report with:
-- Top variants ranked table
-- Impact distribution histogram
-- Prioritization recommendations
-- Optional detailed analysis for top variants
+Returns the strongest effect per scorer (score, calibrated quantile, where it was seen), the largest absolute quantile, and, for a single-nucleotide variant answered from the Atlas, the AlphaGenome Variant Impact (AVI) score. `avi_score` is null on the live path, because the AVI score is served by the Atlas only.
 
----
+**Source behavior.** `source=auto` (default): Atlas for single-nucleotide variants, live inference otherwise; falls back to live only when the Atlas does not hold the variant, and labels it `live (atlas fallback: <reason>)`. `source=atlas`: Atlas only, never falls back. `source=live`: always runs the model.
 
-## Error Handling
+| Parameter | Type | Required | Description |
+|---|---|---|---|
+| `chromosome` | string | yes | Chromosome (chr1-chr22, chrX, chrY) |
+| `position` | number | yes | Genomic position (1-based, hg38) (min 1) |
+| `ref` | string | yes | Reference allele (A, C, G, T; more than one base for an indel) |
+| `alt` | string | yes | Alternate allele (A, C, G, T; more than one base for an indel) |
+| `tissue_type` | string | no | Optional: keep only the tracks of one tissue or cell type. A name (brain, neuron, blood, liver, heart, lung, kidney) or an ontology CURIE (e.g., UBERON:0000955, CL:0000540). Default: all tissues. |
+| `source` | `auto` \| `atlas` \| `live` | no | Optional: where the answer comes from (default: auto). auto = the precomputed AlphaGenome Atlas for single-nucleotide substitutions, live inference for everything else (indels, multi-nucleotide variants); falls back to live only when the Atlas does not hold the variant. atlas = Atlas only, errors instead of falling back. live = always run the model. The result always states which source answered. |
+| `scorers` | array of string | no | Optional: scorer names to use instead of the defaults. Names come from atlas_list_scorers and are the same for both sources, except the AVI scorers, which the Atlas alone serves. |
 
-All tools return MCP errors with appropriate error codes:
+Example: "How large is the predicted effect of chr19:44908684 T>C?"
 
-| Error Type | Error Code | Description |
-|------------|------------|-------------|
-| Invalid Parameters | `InvalidParams` | Input validation failed |
-| API Key Error | `InternalError` | Missing or invalid API key |
-| Rate Limit | `InternalError` | API rate limit exceeded |
-| Network Error | `InternalError` | Unable to connect to API |
-| Unknown Tool | `MethodNotFound` | Tool name not recognized |
+### batch_pathogenicity_filter
 
-**Error Response Format**:
-```json
-{
-  "error": {
-    "code": "InvalidParams",
-    "message": "Validation error:\nchromosome: Invalid chromosome format"
-  }
-}
-```
+Keep the variants whose predicted effect reaches a threshold, ranked. The tool name is kept for compatibility: it filters on predicted effect size, NOT on pathogenicity, and classifies nothing.
 
----
+`threshold` is the smallest absolute calibrated quantile (0 to 1) a variant must reach to be kept (default 0.99): the AVI score's quantile for variants answered from the Atlas, the largest quantile across modalities for live inference. Variants are routed per variant and reported per source; groups from different sources are not comparable.
 
-## Input Validation
+**Source behavior.** `source=auto` (default): Atlas for single-nucleotide variants, live inference otherwise; falls back to live only when the Atlas does not hold the variant, and labels it `live (atlas fallback: <reason>)`. `source=atlas`: Atlas only, never falls back. `source=live`: always runs the model.
 
-### Chromosome Format
-- Pattern: `^chr([1-9]|1[0-9]|2[0-2]|X|Y)$`
-- Valid: `chr1`, `chr17`, `chrX`, `chrY`
-- Invalid: `1`, `Chr1`, `chr23`, `chrM`
+| Parameter | Type | Required | Description |
+|---|---|---|---|
+| `variants` | array of variant objects | yes | Variants to score (1-100) (at least 1, at most 100) Fields: `chromosome`, `position`, `ref`, `alt`, `variant_id` (optional). |
+| `threshold` | number | no | Smallest absolute quantile to keep, between 0 and 1 (default: 0.99) (min 0, max 1) |
+| `source` | `auto` \| `atlas` \| `live` | no | Optional: where the answer comes from (default: auto). auto = the precomputed AlphaGenome Atlas for single-nucleotide substitutions, live inference for everything else (indels, multi-nucleotide variants); falls back to live only when the Atlas does not hold the variant. atlas = Atlas only, errors instead of falling back. live = always run the model. The result always states which source answered. |
+| `scorers` | array of string | no | Optional: scorer names to use instead of the defaults. Names come from atlas_list_scorers and are the same for both sources, except the AVI scorers, which the Atlas alone serves. |
 
-### Position
-- Must be positive integer (≥ 1)
-- No commas or separators
-- Example: `41234567` (not `41,234,567`)
+Example: "Which of these variants have a predicted effect above the 99.9th percentile?"
 
-### Alleles (ref/alt)
-- Only A, T, G, C allowed (case-insensitive)
-- Converted to uppercase automatically
-- ref ≠ alt (must be different)
+### generate_variant_report
 
-### Region Size
-- `end` > `start`
-- `end - start` ≥ 1000 (minimum 1kb)
-- `end - start` ≤ 1000000 (maximum 1Mb)
+A fuller report of one variant's predicted molecular effects: more rows per scorer than predict_variant_effect and, from the Atlas, the AVI score with its feature attributions (AVI_SCORE_FEATURE_IMPORTANCE). It is a research summary, not a clinical report: it contains no pathogenicity classification and no recommendation.
 
----
+**Source behavior.** `source=auto` (default): Atlas for single-nucleotide variants, live inference otherwise; falls back to live only when the Atlas does not hold the variant, and labels it `live (atlas fallback: <reason>)`. `source=atlas`: Atlas only, never falls back. `source=live`: always runs the model.
 
-## Output Formats
+| Parameter | Type | Required | Description |
+|---|---|---|---|
+| `chromosome` | string | yes | Chromosome (chr1-chr22, chrX, chrY) |
+| `position` | number | yes | Genomic position (1-based, hg38) (min 1) |
+| `ref` | string | yes | Reference allele (A, C, G, T; more than one base for an indel) |
+| `alt` | string | yes | Alternate allele (A, C, G, T; more than one base for an indel) |
+| `tissue_type` | string | no | Optional: keep only the tracks of one tissue or cell type. A name (brain, neuron, blood, liver, heart, lung, kidney) or an ontology CURIE (e.g., UBERON:0000955, CL:0000540). Default: all tissues. |
+| `source` | `auto` \| `atlas` \| `live` | no | Optional: where the answer comes from (default: auto). auto = the precomputed AlphaGenome Atlas for single-nucleotide substitutions, live inference for everything else (indels, multi-nucleotide variants); falls back to live only when the Atlas does not hold the variant. atlas = Atlas only, errors instead of falling back. live = always run the model. The result always states which source answered. |
+| `scorers` | array of string | no | Optional: scorer names to use instead of the defaults. Names come from atlas_list_scorers and are the same for both sources, except the AVI scorers, which the Atlas alone serves. |
 
-All tools return results as Markdown text for easy reading in Claude.
+Example: "Generate a report for chr19:44908684 T>C"
 
-### Common Features
-- 🧬 Emoji indicators for quick visual parsing
-- Tables for structured data
-- Color-coded impact levels (🔴 High, 🟡 Moderate, 🟢 Low)
-- Detailed analysis sections
-- Clinical recommendations
-- Important disclaimers
+### explain_variant_impact
 
-### Markdown Structure
-```markdown
-# 🧬 [Tool Name] Analysis
+Plain sentences that restate a variant's predicted effects: the AVI score and its largest contributions (from the Atlas), then the strongest effect of each modality ordered by absolute quantile, with the direction for signed scorers. Descriptive only: the sentences restate returned numbers and make no statement about pathogenicity.
 
-⚠️ **MOCK DATA**: Disclaimer
+**Source behavior.** `source=auto` (default): Atlas for single-nucleotide variants, live inference otherwise; falls back to live only when the Atlas does not hold the variant, and labels it `live (atlas fallback: <reason>)`. `source=atlas`: Atlas only, never falls back. `source=live`: always runs the model.
 
-**Key Info**: Values
+| Parameter | Type | Required | Description |
+|---|---|---|---|
+| `chromosome` | string | yes | Chromosome (chr1-chr22, chrX, chrY) |
+| `position` | number | yes | Genomic position (1-based, hg38) (min 1) |
+| `ref` | string | yes | Reference allele (A, C, G, T; more than one base for an indel) |
+| `alt` | string | yes | Alternate allele (A, C, G, T; more than one base for an indel) |
+| `tissue_type` | string | no | Optional: keep only the tracks of one tissue or cell type. A name (brain, neuron, blood, liver, heart, lung, kidney) or an ontology CURIE (e.g., UBERON:0000955, CL:0000540). Default: all tissues. |
+| `source` | `auto` \| `atlas` \| `live` | no | Optional: where the answer comes from (default: auto). auto = the precomputed AlphaGenome Atlas for single-nucleotide substitutions, live inference for everything else (indels, multi-nucleotide variants); falls back to live only when the Atlas does not hold the variant. atlas = Atlas only, errors instead of falling back. live = always run the model. The result always states which source answered. |
+| `scorers` | array of string | no | Optional: scorer names to use instead of the defaults. Names come from atlas_list_scorers and are the same for both sources, except the AVI scorers, which the Atlas alone serves. |
 
----
+Example: "Explain the predicted effect of chr17:49210289 C>T in plain language"
 
-## 📊 Summary Section
+## Live-inference tools
 
-[Tables and key findings]
+These run `score_variant` with the SDK's recommended variant scorers. They accept single-nucleotide variants, indels and multi-nucleotide variants.
 
----
+### predict_tissue_specific
 
-## 🔬 Detailed Analysis
+The strongest predicted effect of a variant in each of several tissues: the same scores, filtered to the tracks of one tissue at a time.
 
-[In-depth results]
+**Source behavior.** Live inference only. The result states `source: live`.
 
----
+| Parameter | Type | Required | Description |
+|---|---|---|---|
+| `chromosome` | string | yes | Chromosome (chr1-chr22, chrX, chrY) |
+| `position` | number | yes | Genomic position (1-based, hg38) (min 1) |
+| `ref` | string | yes | Reference allele (A, C, G, T; more than one base for an indel) |
+| `alt` | string | yes | Alternate allele (A, C, G, T; more than one base for an indel) |
+| `tissues` | array of string | no | Tissue names (brain, neuron, blood, liver, heart, lung, kidney) or ontology CURIEs. Default: brain, liver, heart |
 
-## ⚠️ Disclaimers
+Example: "Compare the predicted effect of chr19:44908684 T>C in brain, liver and heart"
 
-[Important notes]
+### compare_variants
 
----
+Two variants side by side: the strongest predicted effect of each modality for both, and which of the two has the larger absolute quantile per scorer. A comparison of predicted effect sizes, not of severity.
 
-*Footer with links*
-```
+**Source behavior.** Live inference only. The result states `source: live`.
 
----
+| Parameter | Type | Required | Description |
+|---|---|---|---|
+| `variant1` | variant object | yes | Fields: `chromosome`, `position`, `ref`, `alt`, `variant_id` (optional). |
+| `variant2` | variant object | yes | Fields: `chromosome`, `position`, `ref`, `alt`, `variant_id` (optional). |
 
-## Configuration
+Example: "Compare APOE rs429358 and rs7412"
 
-### Environment Variables
+### predict_splice_impact
 
-| Variable | Required | Default | Description |
-|----------|----------|---------|-------------|
-| `ALPHAGENOME_API_KEY` | Yes* | - | API key (use "mock" for testing) |
-| `ALPHAGENOME_BASE_URL` | No | `https://api.alphagenome.deepmind.com/v1` | API endpoint |
-| `USE_MOCK_API` | No | `false` | Force mock mode |
+Predicted splicing effects of a variant: splice sites, splice site usage and splice junctions, with the gene and junction of each.
 
-*Required except in mock mode
+**Source behavior.** Live inference only. The result states `source: live`.
 
-### Claude Desktop Configuration
+| Parameter | Type | Required | Description |
+|---|---|---|---|
+| `chromosome` | string | yes | Chromosome (chr1-chr22, chrX, chrY) |
+| `position` | number | yes | Genomic position (1-based, hg38) (min 1) |
+| `ref` | string | yes | Reference allele (A, C, G, T; more than one base for an indel) |
+| `alt` | string | yes | Alternate allele (A, C, G, T; more than one base for an indel) |
+| `tissue_type` | string | no | Optional: keep only the tracks of one tissue or cell type. A name (brain, neuron, blood, liver, heart, lung, kidney) or an ontology CURIE (e.g., UBERON:0000955, CL:0000540). Default: all tissues. |
 
-Add to `claude_desktop_config.json`:
+### predict_expression_impact
 
-```json
-{
-  "mcpServers": {
-    "alphagenome": {
-      "command": "node",
-      "args": ["/absolute/path/to/build/index.js"],
-      "env": {
-        "ALPHAGENOME_API_KEY": "mock"
-      }
-    }
-  }
-}
-```
+Predicted gene expression effects of a variant: RNA-seq (log fold change per gene and tissue) and CAGE.
 
----
+**Source behavior.** Live inference only. The result states `source: live`.
 
-## Rate Limits
+| Parameter | Type | Required | Description |
+|---|---|---|---|
+| `chromosome` | string | yes | Chromosome (chr1-chr22, chrX, chrY) |
+| `position` | number | yes | Genomic position (1-based, hg38) (min 1) |
+| `ref` | string | yes | Reference allele (A, C, G, T; more than one base for an indel) |
+| `alt` | string | yes | Alternate allele (A, C, G, T; more than one base for an indel) |
+| `tissue_type` | string | no | Optional: keep only the tracks of one tissue or cell type. A name (brain, neuron, blood, liver, heart, lung, kidney) or an ontology CURIE (e.g., UBERON:0000955, CL:0000540). Default: all tissues. |
 
-(Future: When real API is available)
+### analyze_gwas_locus
 
-- Automatic retry with exponential backoff
-- Respects `Retry-After` headers
-- Maximum 3 retry attempts
-- 30-second timeout per request
+Rank the variants of a locus by predicted effect (largest absolute quantile across modalities), to prioritize candidates for follow-up. For single-nucleotide variants only, atlas_lookup_variants or atlas_scan_region is faster and adds the AVI score.
 
----
+**Source behavior.** Live inference only. The result states `source: live`.
 
-## Best Practices
+| Parameter | Type | Required | Description |
+|---|---|---|---|
+| `variants` | array of variant objects | yes | Variants to score (1-100) (at least 1, at most 100) Fields: `chromosome`, `position`, `ref`, `alt`, `variant_id` (optional). |
+| `chromosome` | string | no | Optional: locus chromosome, for the label |
+| `start` | number | no | Optional: locus start, for the label |
+| `end` | number | no | Optional: locus end, for the label |
 
-### For Variant Analysis
-1. Start with single variant prediction
-2. Check clinical databases (ClinVar, COSMIC) for known variants
-3. Use batch scoring for large-scale prioritization
-4. Validate computational predictions experimentally
+### compare_alleles
 
-### For Region Analysis
-1. Use optimal region size (10-100kb)
-2. Focus on gene regulatory regions
-3. Cross-reference with ENCODE data
-4. Consider tissue-specific context
+Rank the alternate alleles of one position by predicted effect.
 
-### For Batch Scoring
-1. Pre-filter variants by frequency (e.g., < 1%)
-2. Use appropriate scoring metric for your analysis
-3. Set reasonable `top_n` (10-20 for initial screening)
-4. Follow up high-impact variants individually
+**Source behavior.** Live inference only. The result states `source: live`.
 
----
+| Parameter | Type | Required | Description |
+|---|---|---|---|
+| `chromosome` | string | yes | Chromosome (chr1-chr22, chrX, chrY) |
+| `position` | number | yes | Genomic position (1-based, hg38) (min 1) |
+| `ref` | string | yes | Reference allele (A, C, G, T; more than one base for an indel) |
+| `alts` | array of string | yes | Alternate alleles (1-20) |
 
-## Troubleshooting
+### batch_tissue_comparison
 
-### Common Issues
+Rank several variants by predicted effect within each of several tissues: one ranking per tissue.
 
-**"Validation error: Invalid chromosome"**
-- Ensure format is `chrN` (e.g., `chr17`, not `17`)
+**Source behavior.** Live inference only. The result states `source: live`.
 
-**"Region must be at least 1kb"**
-- Check that `end - start >= 1000`
+| Parameter | Type | Required | Description |
+|---|---|---|---|
+| `variants` | array of variant objects | yes | Variants to score (1-100) (at least 1, at most 100) Fields: `chromosome`, `position`, `ref`, `alt`, `variant_id` (optional). |
+| `tissues` | array of string | yes | Tissue names or ontology CURIEs (1-10) |
 
-**"Maximum 100 variants allowed"**
-- Split your variant list into smaller batches
+### predict_tf_binding_impact
 
-**"Reference and alternate alleles must be different"**
-- Verify ref ≠ alt in your input
+Predicted transcription factor binding effects of a variant (TF ChIP-seq), with the factor and cell type of each.
 
----
+**Source behavior.** Live inference only. The result states `source: live`.
 
-## Support
+| Parameter | Type | Required | Description |
+|---|---|---|---|
+| `chromosome` | string | yes | Chromosome (chr1-chr22, chrX, chrY) |
+| `position` | number | yes | Genomic position (1-based, hg38) (min 1) |
+| `ref` | string | yes | Reference allele (A, C, G, T; more than one base for an indel) |
+| `alt` | string | yes | Alternate allele (A, C, G, T; more than one base for an indel) |
+| `tissue_type` | string | no | Optional: keep only the tracks of one tissue or cell type. A name (brain, neuron, blood, liver, heart, lung, kidney) or an ontology CURIE (e.g., UBERON:0000955, CL:0000540). Default: all tissues. |
 
-- **GitHub Issues**: https://github.com/taehojo/alphagenome-mcp/issues
-- **Documentation**: https://github.com/taehojo/alphagenome-mcp#readme
-- **Email**: taehjo@gmail.com
+### predict_chromatin_impact
+
+Predicted chromatin accessibility effects of a variant (ATAC-seq and DNase-seq).
+
+**Source behavior.** Live inference only. The result states `source: live`.
+
+| Parameter | Type | Required | Description |
+|---|---|---|---|
+| `chromosome` | string | yes | Chromosome (chr1-chr22, chrX, chrY) |
+| `position` | number | yes | Genomic position (1-based, hg38) (min 1) |
+| `ref` | string | yes | Reference allele (A, C, G, T; more than one base for an indel) |
+| `alt` | string | yes | Alternate allele (A, C, G, T; more than one base for an indel) |
+| `tissue_type` | string | no | Optional: keep only the tracks of one tissue or cell type. A name (brain, neuron, blood, liver, heart, lung, kidney) or an ontology CURIE (e.g., UBERON:0000955, CL:0000540). Default: all tissues. |
+
+### compare_protective_risk
+
+Two variants side by side, labelled as the caller names them. The tool compares predicted effect sizes per modality; it does not judge which allele is protective or a risk.
+
+**Source behavior.** Live inference only. The result states `source: live`.
+
+| Parameter | Type | Required | Description |
+|---|---|---|---|
+| `protective_variant` | variant object | yes | Fields: `chromosome`, `position`, `ref`, `alt`, `variant_id` (optional). |
+| `risk_variant` | variant object | yes | Fields: `chromosome`, `position`, `ref`, `alt`, `variant_id` (optional). |
+
+### compare_variants_same_gene
+
+Rank several variants by their predicted effect on one gene. With gene_name, the gene-level scorers (RNA_SEQ, SPLICE_SITES) are restricted to that gene.
+
+**Source behavior.** Live inference only. The result states `source: live`.
+
+| Parameter | Type | Required | Description |
+|---|---|---|---|
+| `variants` | array of variant objects | yes | Variants to score (1-100) (at least 1, at most 100) Fields: `chromosome`, `position`, `ref`, `alt`, `variant_id` (optional). |
+| `gene_name` | string | no | Optional: gene symbol (e.g., APOE) |
+
+### predict_allele_specific_effects
+
+Predicted expression with the alternate allele against the reference allele: the RNA_SEQ scorer is that log fold change per gene and tissue, and RNA_SEQ_ACTIVE gives the expression level alongside it.
+
+**Source behavior.** Live inference only. The result states `source: live`.
+
+| Parameter | Type | Required | Description |
+|---|---|---|---|
+| `chromosome` | string | yes | Chromosome (chr1-chr22, chrX, chrY) |
+| `position` | number | yes | Genomic position (1-based, hg38) (min 1) |
+| `ref` | string | yes | Reference allele (A, C, G, T; more than one base for an indel) |
+| `alt` | string | yes | Alternate allele (A, C, G, T; more than one base for an indel) |
+| `tissue_type` | string | no | Optional: keep only the tracks of one tissue or cell type. A name (brain, neuron, blood, liver, heart, lung, kidney) or an ontology CURIE (e.g., UBERON:0000955, CL:0000540). Default: all tissues. |
+
+### annotate_regulatory_context
+
+The predicted effects of a variant across every regulatory modality at once: accessibility, histone marks, TF binding, CAGE, RNA-seq, splice sites, polyadenylation and contact maps. Shows where the predicted effect concentrates; it does not label the variant.
+
+**Source behavior.** Live inference only. The result states `source: live`.
+
+| Parameter | Type | Required | Description |
+|---|---|---|---|
+| `chromosome` | string | yes | Chromosome (chr1-chr22, chrX, chrY) |
+| `position` | number | yes | Genomic position (1-based, hg38) (min 1) |
+| `ref` | string | yes | Reference allele (A, C, G, T; more than one base for an indel) |
+| `alt` | string | yes | Alternate allele (A, C, G, T; more than one base for an indel) |
+| `tissue_type` | string | no | Optional: keep only the tracks of one tissue or cell type. A name (brain, neuron, blood, liver, heart, lung, kidney) or an ontology CURIE (e.g., UBERON:0000955, CL:0000540). Default: all tissues. |
+
+### batch_modality_screen
+
+Rank several variants by predicted effect within one modality: expression (RNA_SEQ, CAGE), splicing (SPLICE_SITES, SPLICE_SITE_USAGE), tf_binding (CHIP_TF) or chromatin (DNASE, ATAC).
+
+**Source behavior.** Live inference only. The result states `source: live`.
+
+| Parameter | Type | Required | Description |
+|---|---|---|---|
+| `variants` | array of variant objects | yes | Variants to score (1-100) (at least 1, at most 100) Fields: `chromosome`, `position`, `ref`, `alt`, `variant_id` (optional). |
+| `modality` | `expression` \| `splicing` \| `tf_binding` \| `chromatin` | yes | - |
+
+## AlphaGenome Atlas tools
+
+Precomputed scores for single-nucleotide substitutions on hg38. No model call.
+
+### atlas_list_scorers
+
+List the variant scorers available in the AlphaGenome Atlas, including the AlphaGenome Variant Impact score (AVI_SCORE) and its feature attributions (AVI_SCORE_FEATURE_IMPORTANCE, AVI_SCORE_MODEL_FEATURES).
+
+Returns each scorer's name, number of tracks and the assays behind it. Use these names in the `scorers` parameter of the other tools. Every scorer except the AVI ones is also available from live inference under the same name. Cached for the session after the first call.
+
+**Source behavior.** Atlas only. The result states `source: atlas`.
+
+**Parameters.** None.
+
+### atlas_lookup_variant
+
+Look up the precomputed AlphaGenome scores of one single-nucleotide variant. No model call, so it answers in seconds.
+
+Returns, per scorer, the strongest tracks for the variant ranked by absolute score, each with its calibrated quantile, gene, tissue or cell type, and assay. Default scorers: AVI_SCORE plus one per modality (RNA_SEQ, CAGE, DNASE, CHIP_HISTONE, CHIP_TF, SPLICE_SITES).
+
+If the reference base does not match hg38, the Atlas says which base it expected and that message is returned as a validation error.
+
+**Source behavior.** Atlas only. The result states `source: atlas`.
+
+| Parameter | Type | Required | Description |
+|---|---|---|---|
+| `chromosome` | string | yes | Chromosome (chr1-chr22, chrX, chrY) |
+| `position` | number | yes | Genomic position (1-based, hg38) (min 1) |
+| `ref` | string | yes | Reference base (one of A, C, G, T). Must match hg38 at this position. |
+| `alt` | string | yes | Alternate base (one of A, C, G, T) |
+| `scorers` | array of string | no | Optional: scorer names to use instead of the defaults. Names come from atlas_list_scorers and are the same for both sources, except the AVI scorers, which the Atlas alone serves. |
+| `top_n` | number | no | Rows to return (default: 25, max: 100) (min 1, max 100) |
+
+Example: "Look up chr19:44908684 T>C in the AlphaGenome Atlas"
+
+### atlas_lookup_variants
+
+Look up precomputed AlphaGenome scores for up to 500 single-nucleotide variants in one call and rank them.
+
+Returns one row per variant (its strongest score and where it was seen), ranked. Default scorer: AVI_SCORE (AlphaGenome Variant Impact), one number per variant. With several scorers the ranking uses the largest absolute quantile. Variants the Atlas does not hold and variants it rejects (for example a reference base that does not match hg38) are listed separately with the reason; they do not fail the call.
+
+**Source behavior.** Atlas only. The result states `source: atlas`.
+
+| Parameter | Type | Required | Description |
+|---|---|---|---|
+| `variants` | array of variant objects | yes | Single-nucleotide variants to look up (1-500) (at least 1, at most 500) Fields: `chromosome`, `position`, `ref`, `alt`, `variant_id` (optional). |
+| `scorers` | array of string | no | Optional: scorer names to use instead of the defaults. Names come from atlas_list_scorers and are the same for both sources, except the AVI scorers, which the Atlas alone serves. |
+| `top_n` | number | no | Rows to return (default: 25, max: 100) (min 1, max 100) |
+
+Example: "Rank these 200 GWAS SNPs by their Atlas scores"
+
+### atlas_scan_region
+
+Scan a genomic region in the AlphaGenome Atlas: every possible single-nucleotide substitution in the interval, ranked. Answers "which positions in this region matter most?" without running the model.
+
+Region width: at most 10,000 bp. Up to 50,000 bp only with allow_large_region=true. A scan is one API request per 32 bp under a requests-per-minute quota, so a large scan can take minutes. If the quota or the time limit stops a scan early, the partial result is returned, marked "Incomplete", with the range that was really scanned; the ranking then covers that range only.
+
+Default scorer: AVI_SCORE (about 7 seconds for 2,000 bp). Multi-track scorers are much slower (2,000 bp: DNASE 17 s, CHIP_TF 86 s). Scorers with one row per gene or junction (RNA_SEQ, SPLICE_JUNCTIONS, ...) cannot be used for a scan: scan with AVI_SCORE, then use atlas_lookup_variant on the top variants.
+
+**Source behavior.** Atlas only. The result states `source: atlas`.
+
+| Parameter | Type | Required | Description |
+|---|---|---|---|
+| `chromosome` | string | yes | Chromosome (chr1-chr22, chrX, chrY) |
+| `start` | number | yes | Start position (1-based, hg38) (min 1) |
+| `end` | number | yes | End position (greater than start; at most start + 10,000, or start + 50,000 with allow_large_region) (min 1) |
+| `allow_large_region` | boolean | no | Set to true to scan more than 10,000 bp (up to 50,000 bp). Slower, and the result may be incomplete (default: false) |
+| `scorers` | array of string | no | Optional: scorer names to use instead of the defaults. Names come from atlas_list_scorers and are the same for both sources, except the AVI scorers, which the Atlas alone serves. |
+| `top_n` | number | no | Rows to return (default: 25, max: 100) (min 1, max 100) |
+
+Example: "Scan chr17:49209289-49211289 and show the 10 substitutions with the largest predicted effect"

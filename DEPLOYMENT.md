@@ -86,7 +86,7 @@ git push -u origin main
 ## ✨ Features
 
 - 🧬 **predict_variant_effect**: Analyze regulatory impact of genetic variants
-- 🔍 **analyze_region**: Identify promoters, enhancers, and TF binding sites
+- 🔍 **atlas_scan_region**: Rank every single-nucleotide substitution in a region from the precomputed AlphaGenome Atlas
 - 📊 **batch_score_variants**: Prioritize multiple variants by regulatory impact
 
 ## 🚀 Installation

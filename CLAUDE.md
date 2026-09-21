@@ -4,7 +4,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project Overview
 
-AlphaGenome MCP (Model Context Protocol) Server: AlphaGenome as a tool for Claude agents. The agent turns a researcher's question into an analysis; the server answers single-nucleotide variants from the precomputed AlphaGenome Atlas and everything else (indels, multi-nucleotide variants, combinations, custom sequences) with live inference, chooses between the two automatically, and states the source on every result.
+AlphaGenome MCP (Model Context Protocol) Server: AlphaGenome as a tool for Claude agents. The agent turns a researcher's question into an analysis; the server answers single-nucleotide variants from the precomputed AlphaGenome Atlas and indels and other variants the Atlas cannot precompute with live inference, chooses between the two automatically, and states the source on every result.
 
 **Real API Integration**: Uses the AlphaGenome Python SDK through a Python bridge. Nothing is mocked.
 
@@ -37,6 +37,9 @@ npm test
 
 # Python unit tests for the shared summarizer (numpy and pandas only)
 npm run test:python
+
+# Regenerate docs/API.md from src/tools.ts (CI fails if it is out of date)
+npm run docs:api
 ```
 
 ### Running Locally
@@ -132,7 +135,7 @@ To add a new MCP tool:
 3. Create tool definition in `src/tools.ts`
 4. Implement handler in `src/index.ts` CallToolRequestSchema
 5. Build it in `src/variant-tools.ts` on `scoreRouted` or `rankRouted`, and test it with the fake backend
-6. Update `ALL_TOOLS` array
+6. Update `ALL_TOOLS` array, then run `npm run docs:api`
 7. Test with Claude Desktop
 
 ## Code Style

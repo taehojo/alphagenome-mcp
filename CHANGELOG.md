@@ -9,7 +9,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [0.3.0] - 2026-09-21
 
-AlphaGenome as a tool for Claude agents: the precomputed AlphaGenome Atlas for single-nucleotide variants, live inference for everything else, chosen automatically, with the source stated on every result.
+AlphaGenome as a tool for Claude agents: the precomputed AlphaGenome Atlas for single-nucleotide variants, live inference for indels and other variants the Atlas cannot precompute, chosen automatically, with the source stated on every result.
 
 ### BREAKING CHANGES
 
@@ -46,6 +46,8 @@ Live inference no longer classifies variants, and the output of every live tool 
 - README reframed around the agent use case; installation now recommends passing the key through `env` rather than `--api-key`, documents `claude mcp add` for Claude Code and the Claude Desktop config paths for macOS and Windows
 - Python 3.10 or newer is required, as the `alphagenome` package requires it (the README said 3.8)
 - The version reported to MCP clients comes from package.json (it was hard-coded to 0.1.5)
+- `docs/API.md` is now a tool reference generated from the definitions in `src/tools.ts` (`npm run docs:api`), and CI fails if it is out of date. It used to describe version 0.1, including a tool that no longer exists
+- README has a Roadmap section: combinations of variants and custom sequences are planned, and no tool in this release provides them
 
 ### Fixed
 - A missing API key no longer kills the server on the first tool call; the caller gets an error and the server keeps running

@@ -6,9 +6,9 @@ import { AtlasNotAvailableError, ValidationError } from './types.js';
  * Choosing between the precomputed AlphaGenome Atlas and live inference.
  *
  * The Atlas holds scores for single-nucleotide substitutions on the human
- * reference genome. Everything else (indels, multi-nucleotide variants,
- * combinations, custom sequences) needs live inference. These functions are
- * pure so the rule can be tested without an API key.
+ * reference genome. Indels and other variants it cannot precompute need live
+ * inference. These functions are pure so the rule can be tested without an
+ * API key.
  */
 
 /** What the caller asked for. */

@@ -12,7 +12,7 @@ import { Tool } from '@modelcontextprotocol/sdk/types.js';
 
 const RESEARCH_NOTE = `Results are AlphaGenome model predictions for research prioritization, not clinical classifications: scores and calibrated quantiles are reported as returned, and no pathogenic/benign call is made.`;
 
-const ATLAS_SCOPE_NOTE = `The Atlas holds precomputed AlphaGenome scores for single-nucleotide substitutions on the human reference genome (hg38, chr1-22, chrX, chrY). Indels, multi-nucleotide variants and custom sequences are not in it; use predict_variant_effect for those.`;
+const ATLAS_SCOPE_NOTE = `The Atlas holds precomputed AlphaGenome scores for single-nucleotide substitutions on the human reference genome (hg38, chr1-22, chrX, chrY). Indels and multi-nucleotide variants are not in it; use predict_variant_effect for those.`;
 
 const SIZE_NOTE = `The response is a summary, never a full score matrix: ranked rows only, capped at top_n (default 25, max 100) and at 40,000 characters.`;
 
