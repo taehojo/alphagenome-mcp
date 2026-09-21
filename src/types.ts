@@ -246,3 +246,108 @@ export class ApiError extends Error {
     this.data = data;
   }
 }
+
+// ============================================================================
+// AlphaGenome Atlas Types
+// ============================================================================
+
+/** One cell of a scorer's matrix: a score for one track (and gene or junction, if the scorer has them). */
+export interface AtlasCell {
+  score: number | null;
+  /** The Atlas's calibrated score for the same cell (the SDK's `quantiles` layer), when the scorer has one. */
+  quantile?: number | null;
+  gene_name?: string;
+  gene_id?: string;
+  junction_Start?: number;
+  junction_End?: number;
+  track?: Record<string, string | number | boolean>;
+}
+
+export interface AtlasScorerInfo {
+  name: string;
+  is_signed: boolean;
+  tracks: number;
+  assays?: string[];
+  biosamples?: number;
+  track_names?: string[];
+}
+
+export interface AtlasScorerList {
+  source: 'atlas';
+  organism: string;
+  coverage: string;
+  scorer_count: number;
+  default_scorers: { single_variant: string[]; many_variants_and_regions: string[] };
+  scorers: AtlasScorerInfo[];
+}
+
+export interface AtlasScorerSummary {
+  scorer: string;
+  available: boolean;
+  is_signed?: boolean;
+  rows?: number;
+  tracks?: number;
+  max_abs_score?: number | null;
+  median_abs_score?: number | null;
+  top?: AtlasCell[];
+}
+
+export interface AtlasVariantResult {
+  source: 'atlas';
+  variant: string;
+  scorers: string[];
+  rows_per_scorer: number;
+  response_cap: string;
+  results: AtlasScorerSummary[];
+}
+
+export interface AtlasRankedVariant {
+  rank: number;
+  variant: string;
+  variant_id?: string;
+  index?: number;
+  position?: number;
+  scores: Record<string, AtlasCell>;
+}
+
+export interface AtlasSkippedVariant {
+  index: number;
+  variant: string;
+  variant_id?: string;
+  reason: string;
+}
+
+export interface AtlasBatchResult {
+  source: 'atlas';
+  scorers: string[];
+  ranked_by: string;
+  requested: number;
+  found: number;
+  not_in_atlas: AtlasSkippedVariant[];
+  invalid: AtlasSkippedVariant[];
+  response_cap: string;
+  ranked: AtlasRankedVariant[];
+}
+
+export interface AtlasRegionResult {
+  source: 'atlas';
+  region: string;
+  width_bp: number;
+  scorers: string[];
+  ranked_by: string;
+  variants_scanned: number;
+  complete: boolean;
+  abs_score_distribution: { median: number; p90: number; p99: number; max: number } | null;
+  response_cap: string;
+  ranked: AtlasRankedVariant[];
+  scanned_region?: string;
+  stopped_because?: string;
+}
+
+export interface AtlasVariantQuery {
+  chromosome: string;
+  position: number;
+  ref: string;
+  alt: string;
+  variant_id?: string;
+}

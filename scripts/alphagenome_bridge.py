@@ -123,6 +123,16 @@ def grpc_status_name(error: BaseException) -> Optional[str]:
 
 def classify_error(error: BaseException) -> str:
     """Map an exception to the error_type understood by the Node client."""
+    # Atlas-specific outcomes are matched by class name so that this module
+    # does not have to import the Atlas client for live-inference requests.
+    kind = type(error).__name__
+    if kind == 'AtlasNotAvailable':
+        return 'AtlasNotAvailableError'
+    if kind == 'AtlasInvalidRequest':
+        return 'ValidationError'
+    if kind == 'AtlasQuotaExceeded':
+        return 'RateLimitError'
+
     status = grpc_status_name(error)
     if isinstance(error, PermissionError) or status in ('UNAUTHENTICATED', 'PERMISSION_DENIED'):
         return 'ApiKeyError'
@@ -876,6 +886,17 @@ def main():
 
         if not api_key:
             raise PermissionError("API key is required")
+
+        # Atlas actions read precomputed scores and never touch the model, so
+        # they get the Atlas client and return before the model client is made.
+        if isinstance(action, str) and action.startswith('atlas_'):
+            import atlas_actions
+            handler = atlas_actions.ACTIONS.get(action)
+            if handler is None:
+                raise ValueError(f"Unknown action: {action}")
+            result = handler(atlas_actions.create_client(api_key), params)
+            print(json.dumps({'success': True, 'data': result}))
+            sys.exit(0)
 
         # Create AlphaGenome client
         client = dna_client.create(api_key)
