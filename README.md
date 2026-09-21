@@ -627,9 +627,11 @@ Not in this release, and not promised by any tool above:
 
 Both need live inference and neither can be precomputed, so they fit the same design: the Atlas where it can answer, the model where it cannot, and the source on every result.
 
-## Read more
+## Why this server exists
 
-[From a microglia gene to a variant map in about 60 seconds](docs/media/explainer.png): a longer, illustrated explainer of the research workflow this server came from, asking which non-coding variants near *ABI3* change its expression.
+**From a microglia gene to a variant map in about 60 seconds.** The research workflow this server came from: which non-coding variants near *ABI3* change its expression, answered with a traditional pipeline and with one sentence in Claude Code. Click the image for full resolution.
+
+[![From a microglia gene to a variant map in about 60 seconds: the ABI3 question in Alzheimer's disease, the traditional pipeline next to vibe coding with the AlphaGenome MCP server, and the Python script that one sentence replaces](docs/media/explainer.png)](docs/media/explainer.png)
 
 ## Citation
 
