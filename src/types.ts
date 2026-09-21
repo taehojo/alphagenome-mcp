@@ -2,184 +2,143 @@
 
 /**
  * TypeScript type definitions for AlphaGenome MCP Server
+ *
+ * The Atlas and live inference return variant scores in one shape, so there is
+ * one set of result types and a `source` field that says which one answered.
  */
 
 // ============================================================================
-// Variant Prediction Types
+// Requests
 // ============================================================================
 
-export interface VariantPredictionParams {
+export interface VariantQuery {
   chromosome: string;
   position: number;
   ref: string;
   alt: string;
-  output_types?: OutputType[];
-  tissue_type?: string;
+  variant_id?: string;
+}
+
+/** What narrows a result: scorers to use, tissues and genes to keep, rows to return. */
+export interface ScoreOptions {
+  scorers?: string[];
+  /** Tissue names ("brain") or ontology CURIEs ("UBERON:0000955"). */
+  tissues?: string[];
+  genes?: string[];
+  top_n?: number;
 }
 
 export type OutputType =
-  | 'rna_seq'
-  | 'cage'
-  | 'splice'
-  | 'histone'
-  | 'tf_binding'
-  | 'dnase'
-  | 'atac'
-  | 'contact_map';
+  'rna_seq' | 'cage' | 'splice' | 'histone' | 'tf_binding' | 'dnase' | 'atac' | 'contact_map';
 
-export interface VariantResult {
+// ============================================================================
+// Results
+// ============================================================================
+
+/** One cell of a scorer's matrix: a score for one track (and gene or junction, if the scorer has them). */
+export interface ScoreCell {
+  score: number | null;
+  /** The calibrated score returned with it (the SDK's `quantiles` layer), when the scorer has one. */
+  quantile?: number | null;
+  gene_name?: string;
+  gene_id?: string;
+  junction_Start?: number;
+  junction_End?: number;
+  track?: Record<string, string | number | boolean>;
+}
+
+export interface ScorerSummary {
+  scorer: string;
+  available: boolean;
+  is_signed?: boolean;
+  rows?: number;
+  tracks?: number;
+  max_abs_score?: number | null;
+  median_abs_score?: number | null;
+  top?: ScoreCell[];
+}
+
+/** One variant: the strongest cells of each scorer. Never the matrix. */
+export interface VariantScores {
+  /** "atlas", "live", or "live (atlas fallback: <reason>)". */
+  source: string;
+  /** Why the variant was routed the way it was, when that is worth saying. */
+  source_note?: string;
   variant: string;
-  gene_context?: string;
-  predictions: {
-    rna_seq?: RnaSeqPrediction;
-    splice?: SplicePrediction;
-    tf_binding?: TFBindingPrediction[];
-    histone?: HistonePrediction;
-    dnase?: DnasePrediction;
-    atac?: AtacPrediction;
-  };
-  interpretation: {
-    impact_level: 'low' | 'moderate' | 'high' | 'critical';
-    clinical_significance?: string;
-    recommendations: string[];
-  };
+  scorers: string[];
+  rows_per_scorer: number;
+  response_cap: string;
+  results: ScorerSummary[];
+  tissue_filter?: string[];
+  gene_filter?: string[];
 }
 
-export interface RnaSeqPrediction {
-  reference_score: number;
-  alternate_score: number;
-  fold_change: number;
-  confidence: number;
+export interface RankedVariant {
+  rank: number;
+  variant: string;
+  variant_id?: string;
+  index?: number;
+  position?: number;
+  scores: Record<string, ScoreCell>;
 }
 
-export interface SplicePrediction {
-  reference_score: number;
-  alternate_score: number;
-  delta: number;
-  consequence: string;
+export interface SkippedVariant {
+  index: number;
+  variant: string;
+  variant_id?: string;
+  reason: string;
 }
 
-export interface TFBindingPrediction {
-  factor: string;
-  ref_score: number;
-  alt_score: number;
-  change: number;
+/** Many variants from one source, ranked. */
+export interface RankedVariants {
+  source: string;
+  scorers: string[];
+  ranked_by: string;
+  requested: number;
+  found: number;
+  /** Atlas only: variants the Atlas does not hold. */
+  not_in_atlas: SkippedVariant[];
+  /** Variants the source rejected or could not score, with the reason. */
+  invalid: SkippedVariant[];
+  complete: boolean;
+  response_cap: string;
+  ranked: RankedVariant[];
+  tissue_filter?: string[];
+  gene_filter?: string[];
 }
 
-export interface HistonePrediction {
-  marks: Array<{
-    type: string;
-    ref_signal: number;
-    alt_signal: number;
-  }>;
-}
-
-export interface DnasePrediction {
-  reference_score: number;
-  alternate_score: number;
-  delta: number;
-}
-
-export interface AtacPrediction {
-  reference_score: number;
-  alternate_score: number;
-  delta: number;
-}
-
-// ============================================================================
-// Region Analysis Types
-// ============================================================================
-
-export interface RegionAnalysisParams {
-  chromosome: string;
-  start: number;
-  end: number;
-  analysis_types?: AnalysisType[];
-  resolution?: 'base' | 'window';
-}
-
-export type AnalysisType = 'promoter' | 'enhancer' | 'silencer' | 'tf_binding' | 'chromatin_state';
-
-export interface RegionResult {
+export interface RegionScan {
+  source: 'atlas';
   region: string;
-  elements: {
-    promoters?: PromoterElement[];
-    enhancers?: EnhancerElement[];
-    silencers?: SilencerElement[];
-    tf_binding_sites?: TFBindingSite[];
-    chromatin_states?: ChromatinState[];
-  };
+  width_bp: number;
+  scorers: string[];
+  ranked_by: string;
+  variants_scanned: number;
+  complete: boolean;
+  /** The part of the region that was really scanned; differs from `region` when incomplete. */
+  scanned_region: string;
+  stopped_because?: string;
+  ranking_value_distribution: { median: number; p90: number; p99: number; max: number } | null;
+  response_cap: string;
+  ranked: RankedVariant[];
 }
 
-export interface PromoterElement {
-  start: number;
-  end: number;
-  score: number;
-  type: string;
-  associated_gene?: string;
-  activity?: string;
+export interface ScorerInfo {
+  name: string;
+  is_signed: boolean;
+  tracks: number;
+  assays?: string[];
+  biosamples?: number;
+  track_names?: string[];
 }
 
-export interface EnhancerElement {
-  start: number;
-  end: number;
-  score: number;
-  type?: string;
-  target_gene?: string;
-  distance_to_tss?: number;
-  chromatin_loop?: boolean;
-}
-
-export interface SilencerElement {
-  start: number;
-  end: number;
-  score: number;
-  target_gene?: string;
-}
-
-export interface TFBindingSite {
-  position: number;
-  factor: string;
-  score: number;
-  strand: '+' | '-';
-  sequence?: string;
-}
-
-export interface ChromatinState {
-  start: number;
-  end: number;
-  state: string;
-  activity: string;
-}
-
-// ============================================================================
-// Batch Scoring Types
-// ============================================================================
-
-export interface BatchScoreParams {
-  variants: Array<{
-    chromosome: string;
-    position: number;
-    ref: string;
-    alt: string;
-    variant_id?: string;
-  }>;
-  scoring_metric: 'rna_seq' | 'splice' | 'regulatory_impact' | 'combined';
-  top_n?: number;
-  include_interpretation?: boolean;
-}
-
-export interface BatchResult {
-  total_analyzed: number;
-  variants: Array<{
-    variant_id?: string;
-    variant: string;
-    score: number;
-    impact_level: string;
-    rank: number;
-    key_effect?: string;
-  }>;
-  distribution: Record<string, number>;
+export interface ScorerList {
+  source: 'atlas';
+  organism: string;
+  coverage: string;
+  scorer_count: number;
+  default_scorers: { single_variant: string[]; many_variants_and_regions: string[] };
+  scorers: ScorerInfo[];
 }
 
 // ============================================================================
@@ -214,11 +173,23 @@ export class NetworkError extends Error {
   }
 }
 
+/**
+ * The Atlas answered, and the answer is that it does not hold this variant.
+ * This is the only Atlas failure that source=auto may answer with live
+ * inference instead.
+ */
+export class AtlasNotAvailableError extends Error {
+  constructor(message: string) {
+    super(message);
+    this.name = 'AtlasNotAvailableError';
+  }
+}
+
 export class ApiError extends Error {
   public statusCode?: number;
-  public data?: any;
+  public data?: unknown;
 
-  constructor(message: string, statusCode?: number, data?: any) {
+  constructor(message: string, statusCode?: number, data?: unknown) {
     super(message);
     this.name = 'ApiError';
     this.statusCode = statusCode;

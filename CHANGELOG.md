@@ -7,6 +7,63 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.3.0] - 2026-09-21
+
+AlphaGenome as a tool for Claude agents: the precomputed AlphaGenome Atlas for single-nucleotide variants, live inference for indels and other variants the Atlas cannot precompute, chosen automatically, with the source stated on every result.
+
+### BREAKING CHANGES
+
+Live inference no longer classifies variants, and the output of every live tool has changed.
+
+- **Why.** The old live path took the largest `|alt - ref|` over the whole 1 Mb window, on raw track values, and compared it with fixed thresholds (0.5, 0.2). Raw ChIP-seq values are in the hundreds, so practically every variant came out as `high` impact and `likely_pathogenic`. A 2 bp deletion whose mean predictions did not change was reported as "163200%", "HIGH RISK", "LIKELY_PATHOGENIC". Those labels were artefacts, not predictions.
+- **What replaces it.** Live inference now uses the SDK's `score_variant` with its recommended variant scorers. They have the same names as the Atlas scorers and return the same shape (scores with calibrated quantiles, per track and per gene), so an Atlas result and a live result go through one summarizer and can be read side by side. Indels and multi-nucleotide variants are scored correctly.
+- **Removed from every result, on both paths:** `classification`/`clinical_significance` values, `impact_level`, `pathogenicity_score`, risk labels, recommendations, percent-change and fold-change statements, `ase_ratio`, `regulatory_context` labels, `more_severe`. Scores and quantiles are reported as returned.
+- **Tools that keep their name but changed meaning:**
+  - `assess_pathogenicity`: predicted effect size per modality, the largest absolute quantile, and the AVI score from the Atlas. `classification` is always `null`.
+  - `batch_pathogenicity_filter`: `threshold` is now the smallest absolute quantile (0 to 1, default 0.99) a variant must reach to be kept. It filters on predicted effect size, not on pathogenicity.
+  - `generate_variant_report`: a research summary with more rows per scorer and, from the Atlas, the AVI feature attributions. No classification, no recommendation.
+  - `explain_variant_impact`: sentences that restate the returned scores and quantiles. Descriptive only.
+- **Other tools:** all fourteen remaining variant tools return the new shape (strongest effect per scorer with score, quantile and where it was seen; rankings by predicted effect). `compare_variants` and `compare_protective_risk` report which variant has the larger quantile per scorer instead of which is "more severe".
+- `predict_variant_effect` no longer filters to brain by default; `tissue_type` filters only when given. `batch_score_variants` no longer accepts `include_interpretation`.
+- These are model predictions for research prioritization, not clinical classifications, and every tool description and result now says so.
+
+### Added
+- AlphaGenome Atlas tools (precomputed scores, no model call)
+  - atlas_list_scorers: the scorers the Atlas serves, cached for the session
+  - atlas_lookup_variant: strongest tracks per scorer for one single-nucleotide variant
+  - atlas_lookup_variants: up to 500 variants ranked; missing and rejected variants listed separately
+  - atlas_scan_region: every substitution in a region, ranked. At most 10,000 bp; up to 50,000 bp only with `allow_large_region: true`, because a scan is one API request per 32 bp under a requests-per-minute quota. A scan stopped by the quota or the time limit returns the partial result, marked incomplete, with the range that was really scanned
+- The AlphaGenome Variant Impact score as a first-class output: `AVI_SCORE` is the default for ranking many variants and for region scans, and `AVI_SCORE_FEATURE_IMPORTANCE` is shown by generate_variant_report and explain_variant_impact. AVI is served by the Atlas only, so it exists for single-nucleotide variants; a live result has none and says so
+- `source` parameter (`auto` default, `atlas`, `live`) and `scorers` parameter on predict_variant_effect, batch_score_variants, assess_pathogenicity, batch_pathogenicity_filter, generate_variant_report and explain_variant_impact
+- `tissue_type` and `tissues` accept ontology CURIEs (`UBERON:0000955`) as well as names, and filter tracks on both paths
+- Every result states its source: `atlas`, `live`, or `live (atlas fallback: <reason>)`. Batches report how many variants came from each source and how many fell back
+- Response size cap: Atlas results are ranked summaries (top_n default 25, maximum 100), never a score matrix, and no response exceeds 40,000 characters
+- `ALPHAGENOME_PYTHON` to choose the interpreter; `python3` then `python` are tried otherwise (fixes Windows, where `python3` usually does not exist)
+- `ALPHAGENOME_TIMEOUT_MS` (default 180000). A call that runs over is stopped with a clear error instead of hanging
+- Unit tests that run without an API key and in CI: TypeScript tests for validation, formatting, routing, configuration, the tool definitions and all twenty variant tools against a fake backend; Python tests for the shared summarizer
+
+### Changed
+- README reframed around the agent use case; installation now recommends passing the key through `env` rather than `--api-key`, documents `claude mcp add` for Claude Code and the Claude Desktop config paths for macOS and Windows
+- Python 3.10 or newer is required, as the `alphagenome` package requires it (the README said 3.8)
+- Installation guide: where to get a key, a virtual-environment setup with `ALPHAGENOME_PYTHON` for macOS, Linux and Windows, a verification step, and a troubleshooting table keyed on the server's error messages. Live inference timings updated to the measured 3-10 seconds (they said 30-60)
+- The publish workflow runs the unit tests before publishing; its last step, which was not valid JavaScript and could never run, is replaced by a job summary
+- The version reported to MCP clients comes from package.json (it was hard-coded to 0.1.5)
+- `docs/API.md` is now a tool reference generated from the definitions in `src/tools.ts` (`npm run docs:api`), and CI fails if it is out of date. It used to describe version 0.1, including a tool that no longer exists
+- README has a Roadmap section: combinations of variants and custom sequences are planned, and no tool in this release provides them
+
+### Fixed
+- A missing API key no longer kills the server on the first tool call; the caller gets an error and the server keeps running. The error now points to https://alphagenome.google/api; the address it used to give no longer resolves
+- Bridge errors reach the caller with their real message and type. The bridge reports failures as JSON on stdout and exits non-zero; the client used to look at the exit code first and replace the message with "exited with code 1"
+- Authentication, rate limit, timeout and validation failures are now distinct errors instead of one generic API error
+- `output_types` given as names (`"rna_seq"`, `"splice"`, ...) crashed live inference with `'str' object has no attribute 'to_proto'`; they now select scorers by name on both paths
+- `compare_variants_same_gene` ignored its `gene_name` parameter (the bridge read `gene`)
+- A failed `alphagenome` import is reported on stdout as JSON, so the client can show it
+- `npm test` matched no files and passed with 0 tests; `npm run format:check` and `npm run lint` failed on Windows because of single-quoted globs
+
+### Removed
+- The constant `confidence: 0.85` in live RNA-seq results. It was a placeholder, not a model output
+- Unused `axios` and `axios-retry` dependencies
+
 ## [0.2.0] - 2025-10-13
 
 ### Added

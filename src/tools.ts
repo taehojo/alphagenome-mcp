@@ -4,362 +4,330 @@ import { Tool } from '@modelcontextprotocol/sdk/types.js';
 
 /**
  * MCP Tool Definitions for AlphaGenome Server
+ *
+ * Every description ends with the same statement: these are model predictions
+ * for research prioritization, not clinical classifications. No tool returns a
+ * pathogenicity class, a risk label or a percent change.
  */
 
-export const PREDICT_VARIANT_TOOL: Tool = {
-  name: 'predict_variant_effect',
-  description: `Predict the regulatory impact of a genetic variant using AlphaGenome AI.
+const RESEARCH_NOTE = `Results are AlphaGenome model predictions for research prioritization, not clinical classifications: scores and calibrated quantiles are reported as returned, and no pathogenic/benign call is made.`;
 
-Powered by Google DeepMind's AlphaGenome model for accurate regulatory predictions.
+const ATLAS_SCOPE_NOTE = `The Atlas holds precomputed AlphaGenome scores for single-nucleotide substitutions on the human reference genome (hg38, chr1-22, chrX, chrY). Indels and multi-nucleotide variants are not in it; use predict_variant_effect for those.`;
 
-Analyzes how a single nucleotide change affects:
-- Gene expression (RNA-seq predictions)
-- Splicing patterns
-- Transcription factor binding
-- Chromatin accessibility
-- Histone modifications
+const SIZE_NOTE = `The response is a summary, never a full score matrix: ranked rows only, capped at top_n (default 25, max 100) and at 40,000 characters.`;
 
-Perfect for: variant interpretation, GWAS follow-up, clinical genomics research.
+const ROUTING_NOTE = `Source: a single-nucleotide variant is answered from the precomputed AlphaGenome Atlas; an indel or multi-nucleotide variant runs live inference (score_variant). Both return the same scorers in the same shape. Chosen automatically, overridable with \`source\`, and always stated in the result.`;
 
-Example: "Analyze chr17:41234567A>T with AlphaGenome"`,
-  inputSchema: {
-    type: 'object',
-    properties: {
-      chromosome: {
-        type: 'string',
-        description: 'Chromosome (chr1-chr22, chrX, chrY)',
-        pattern: '^chr([1-9]|1[0-9]|2[0-2]|X|Y)$',
-      },
-      position: {
-        type: 'number',
-        description: 'Genomic position (1-based, positive integer)',
-        minimum: 1,
-      },
-      ref: {
-        type: 'string',
-        description: 'Reference allele (A, T, G, or C)',
-        pattern: '^[ATGCatgc]+$',
-      },
-      alt: {
-        type: 'string',
-        description: 'Alternate allele (A, T, G, or C)',
-        pattern: '^[ATGCatgc]+$',
-      },
-      output_types: {
-        type: 'array',
-        items: {
-          type: 'string',
-          enum: [
-            'rna_seq',
-            'cage',
-            'splice',
-            'histone',
-            'tf_binding',
-            'dnase',
-            'atac',
-            'contact_map',
-          ],
-        },
-        description: 'Optional: specific analyses to run (default: all)',
-      },
-      tissue_type: {
-        type: 'string',
-        description: 'Optional: tissue context (UBERON term, e.g., "UBERON:0001157" for brain)',
-      },
-    },
-    required: ['chromosome', 'position', 'ref', 'alt'],
+const LIVE_NOTE = `Runs live inference (score_variant with the SDK's recommended variant scorers); works for single-nucleotide variants, indels and multi-nucleotide variants. The result states \`source: live\`.`;
+
+// ----------------------------------------------------------------------------
+// Shared input properties
+// ----------------------------------------------------------------------------
+
+const CHROMOSOME = {
+  type: 'string',
+  description: 'Chromosome (chr1-chr22, chrX, chrY)',
+  pattern: '^chr([1-9]|1[0-9]|2[0-2]|X|Y)$',
+} as const;
+
+const POSITION = {
+  type: 'number',
+  description: 'Genomic position (1-based, hg38)',
+  minimum: 1,
+} as const;
+
+const REF = {
+  type: 'string',
+  description: 'Reference allele (A, C, G, T; more than one base for an indel)',
+  pattern: '^[ATGCatgc]+$',
+} as const;
+
+const ALT = {
+  type: 'string',
+  description: 'Alternate allele (A, C, G, T; more than one base for an indel)',
+  pattern: '^[ATGCatgc]+$',
+} as const;
+
+const VARIANT_PROPERTIES = { chromosome: CHROMOSOME, position: POSITION, ref: REF, alt: ALT };
+const VARIANT_REQUIRED = ['chromosome', 'position', 'ref', 'alt'];
+
+const VARIANT_OBJECT = {
+  type: 'object',
+  properties: {
+    ...VARIANT_PROPERTIES,
+    variant_id: { type: 'string', description: 'Optional: variant identifier (e.g., rs number)' },
   },
-};
+  required: VARIANT_REQUIRED,
+} as const;
+
+const LIVE_VARIANTS = {
+  type: 'array',
+  items: VARIANT_OBJECT,
+  description: 'Variants to score (1-100)',
+  minItems: 1,
+  maxItems: 100,
+} as const;
+
+const TISSUE = {
+  type: 'string',
+  description:
+    'Optional: keep only the tracks of one tissue or cell type. A name (brain, neuron, blood, liver, heart, lung, kidney) or an ontology CURIE (e.g., UBERON:0000955, CL:0000540). Default: all tissues.',
+} as const;
+
+const SOURCE = {
+  type: 'string',
+  enum: ['auto', 'atlas', 'live'],
+  description:
+    'Optional: where the answer comes from (default: auto). ' +
+    'auto = the precomputed AlphaGenome Atlas for single-nucleotide substitutions, live inference for everything else ' +
+    '(indels, multi-nucleotide variants); falls back to live only when the Atlas does not hold the variant. ' +
+    'atlas = Atlas only, errors instead of falling back. live = always run the model. ' +
+    'The result always states which source answered.',
+} as const;
+
+const SCORERS = {
+  type: 'array',
+  items: { type: 'string' },
+  description:
+    'Optional: scorer names to use instead of the defaults. Names come from atlas_list_scorers and are the same for both sources, except the AVI scorers, which the Atlas alone serves.',
+} as const;
+
+const TOP_N = {
+  type: 'number',
+  description: 'Rows to return (default: 25, max: 100)',
+  minimum: 1,
+  maximum: 100,
+} as const;
+
+function singleVariantTool(
+  name: string,
+  description: string,
+  extra: Record<string, unknown> = {}
+): Tool {
+  return {
+    name,
+    description,
+    inputSchema: {
+      type: 'object',
+      properties: { ...VARIANT_PROPERTIES, tissue_type: TISSUE, ...extra },
+      required: VARIANT_REQUIRED,
+    },
+  };
+}
+
+// ----------------------------------------------------------------------------
+// Tools that choose between the Atlas and live inference
+// ----------------------------------------------------------------------------
+
+export const PREDICT_VARIANT_TOOL = singleVariantTool(
+  'predict_variant_effect',
+  `Predicted regulatory effect of a genetic variant, per modality: the strongest tracks of each scorer (expression, transcription start, chromatin accessibility, histone marks, transcription factor binding, splicing), each with its score, calibrated quantile, gene, tissue or cell type, and assay. From the Atlas the AlphaGenome Variant Impact (AVI) score is included.
+
+${ROUTING_NOTE}
+
+${SIZE_NOTE}
+
+${RESEARCH_NOTE}
+
+Example: "Analyze chr19:44908684 T>C with AlphaGenome"`,
+  {
+    output_types: {
+      type: 'array',
+      items: {
+        type: 'string',
+        enum: [
+          'rna_seq',
+          'cage',
+          'splice',
+          'histone',
+          'tf_binding',
+          'dnase',
+          'atac',
+          'contact_map',
+        ],
+      },
+      description: 'Optional: modalities to report (default: one scorer per modality)',
+    },
+    source: SOURCE,
+    scorers: SCORERS,
+  }
+);
 
 export const BATCH_SCORE_TOOL: Tool = {
   name: 'batch_score_variants',
-  description: `Score and prioritize multiple genetic variants using AlphaGenome AI.
+  description: `Score up to 100 variants and rank them by predicted effect.
 
-Powered by Google DeepMind's AlphaGenome model for high-throughput variant scoring.
+Each variant is routed on its own: single-nucleotide variants to the Atlas, the rest to live inference. A mixed batch comes back as two separately ranked groups, because the Atlas group is ranked by the AVI score and live inference has no AVI score; the two must not be compared. The result reports how many variants came from each source and how many fell back.
 
-Analyzes up to 100 variants simultaneously and ranks them by regulatory impact.
+Scoring metric (used when \`scorers\` is not given): rna_seq = RNA_SEQ, splice = SPLICE_SITES, regulatory_impact and combined = AVI_SCORE from the Atlas and every modality (ranked by the largest absolute quantile) from live inference.
 
-Scoring metrics:
-- rna_seq: Gene expression changes
-- splice: Splicing alterations
-- regulatory_impact: Combined regulatory score
-- combined: All metrics weighted
+${RESEARCH_NOTE}
 
-Perfect for: GWAS post-analysis, VCF filtering, variant prioritization.
-
-Example: "Score these 50 variants and show me the top 10 by regulatory impact"`,
+Example: "Score these 50 variants and show me the top 10 by predicted effect"`,
   inputSchema: {
     type: 'object',
     properties: {
-      variants: {
-        type: 'array',
-        items: {
-          type: 'object',
-          properties: {
-            chromosome: {
-              type: 'string',
-              description: 'Chromosome',
-              pattern: '^chr([1-9]|1[0-9]|2[0-2]|X|Y)$',
-            },
-            position: {
-              type: 'number',
-              description: 'Position',
-              minimum: 1,
-            },
-            ref: {
-              type: 'string',
-              description: 'Reference allele',
-              pattern: '^[ATGCatgc]+$',
-            },
-            alt: {
-              type: 'string',
-              description: 'Alternate allele',
-              pattern: '^[ATGCatgc]+$',
-            },
-            variant_id: {
-              type: 'string',
-              description: 'Optional: variant identifier (e.g., rs number)',
-            },
-          },
-          required: ['chromosome', 'position', 'ref', 'alt'],
-        },
-        description: 'List of variants to analyze (1-100)',
-        minItems: 1,
-        maxItems: 100,
-      },
+      variants: LIVE_VARIANTS,
       scoring_metric: {
         type: 'string',
         enum: ['rna_seq', 'splice', 'regulatory_impact', 'combined'],
-        description: 'Metric to use for scoring and ranking',
+        description: 'What to rank by',
       },
       top_n: {
         type: 'number',
-        description: 'Number of top variants to return (default: 10, max: 100)',
+        description: 'Variants to return per group (default: 10, max: 100)',
         minimum: 1,
         maximum: 100,
       },
-      include_interpretation: {
-        type: 'boolean',
-        description: 'Include detailed clinical interpretation (default: false)',
-      },
+      source: SOURCE,
+      scorers: SCORERS,
     },
     required: ['variants', 'scoring_metric'],
   },
 };
 
-// Group A Tools: Core Essential
+export const ASSESS_PATHOGENICITY_TOOL = singleVariantTool(
+  'assess_pathogenicity',
+  `Predicted effect size of a variant across modalities, for prioritization. The tool name is kept for compatibility: it does NOT classify a variant as pathogenic or benign, and \`classification\` is always null.
 
-export const ASSESS_PATHOGENICITY_TOOL: Tool = {
-  name: 'assess_pathogenicity',
-  description: `Comprehensive pathogenicity assessment of a genetic variant.
+Returns the strongest effect per scorer (score, calibrated quantile, where it was seen), the largest absolute quantile, and, for a single-nucleotide variant answered from the Atlas, the AlphaGenome Variant Impact (AVI) score. \`avi_score\` is null on the live path, because the AVI score is served by the Atlas only.
 
-Evaluates variant across all regulatory modalities and provides clinical classification.
+${ROUTING_NOTE}
 
-Returns:
-- Pathogenicity score (0-1 scale)
-- Clinical classification (pathogenic/likely_pathogenic/uncertain/likely_benign/benign)
-- Evidence breakdown (expression, splicing, TF binding impacts)
+${RESEARCH_NOTE}
 
-Perfect for: clinical variant interpretation, pathogenicity prediction, diagnostic sequencing.
+Example: "How large is the predicted effect of chr19:44908684 T>C?"`,
+  { source: SOURCE, scorers: SCORERS }
+);
 
-Example: "Assess pathogenicity of chr19:44908684T>C"`,
+export const BATCH_PATHOGENICITY_FILTER_TOOL: Tool = {
+  name: 'batch_pathogenicity_filter',
+  description: `Keep the variants whose predicted effect reaches a threshold, ranked. The tool name is kept for compatibility: it filters on predicted effect size, NOT on pathogenicity, and classifies nothing.
+
+\`threshold\` is the smallest absolute calibrated quantile (0 to 1) a variant must reach to be kept (default 0.99): the AVI score's quantile for variants answered from the Atlas, the largest quantile across modalities for live inference. Variants are routed per variant and reported per source; groups from different sources are not comparable.
+
+${RESEARCH_NOTE}
+
+Example: "Which of these variants have a predicted effect above the 99.9th percentile?"`,
   inputSchema: {
     type: 'object',
     properties: {
-      chromosome: {
-        type: 'string',
-        description: 'Chromosome (chr1-chr22, chrX, chrY)',
-        pattern: '^chr([1-9]|1[0-9]|2[0-2]|X|Y)$',
-      },
-      position: {
+      variants: LIVE_VARIANTS,
+      threshold: {
         type: 'number',
-        description: 'Genomic position (1-based)',
-        minimum: 1,
+        description: 'Smallest absolute quantile to keep, between 0 and 1 (default: 0.99)',
+        minimum: 0,
+        maximum: 1,
       },
-      ref: {
-        type: 'string',
-        description: 'Reference allele',
-        pattern: '^[ATGCatgc]+$',
-      },
-      alt: {
-        type: 'string',
-        description: 'Alternate allele',
-        pattern: '^[ATGCatgc]+$',
-      },
-      tissue_type: {
-        type: 'string',
-        description: 'Optional: disease-relevant tissue (default: brain)',
-      },
+      source: SOURCE,
+      scorers: SCORERS,
     },
-    required: ['chromosome', 'position', 'ref', 'alt'],
+    required: ['variants'],
   },
 };
 
+export const GENERATE_VARIANT_REPORT_TOOL = singleVariantTool(
+  'generate_variant_report',
+  `A fuller report of one variant's predicted molecular effects: more rows per scorer than predict_variant_effect and, from the Atlas, the AVI score with its feature attributions (AVI_SCORE_FEATURE_IMPORTANCE). It is a research summary, not a clinical report: it contains no pathogenicity classification and no recommendation.
+
+${ROUTING_NOTE}
+
+${SIZE_NOTE}
+
+${RESEARCH_NOTE}
+
+Example: "Generate a report for chr19:44908684 T>C"`,
+  { source: SOURCE, scorers: SCORERS }
+);
+
+export const EXPLAIN_VARIANT_IMPACT_TOOL = singleVariantTool(
+  'explain_variant_impact',
+  `Plain sentences that restate a variant's predicted effects: the AVI score and its largest contributions (from the Atlas), then the strongest effect of each modality ordered by absolute quantile, with the direction for signed scorers. Descriptive only: the sentences restate returned numbers and make no statement about pathogenicity.
+
+${ROUTING_NOTE}
+
+${RESEARCH_NOTE}
+
+Example: "Explain the predicted effect of chr17:49210289 C>T in plain language"`,
+  { source: SOURCE, scorers: SCORERS }
+);
+
+// ----------------------------------------------------------------------------
+// Live-inference tools
+// ----------------------------------------------------------------------------
+
 export const PREDICT_TISSUE_SPECIFIC_TOOL: Tool = {
   name: 'predict_tissue_specific',
-  description: `Predict variant effects across multiple tissues.
+  description: `The strongest predicted effect of a variant in each of several tissues: the same scores, filtered to the tracks of one tissue at a time.
 
-Compares regulatory impact in different tissues to identify tissue-specific effects.
+${LIVE_NOTE}
 
-Default tissues: brain, liver, heart (customizable)
+${RESEARCH_NOTE}
 
-Returns impact levels and expression changes for each tissue.
-
-Perfect for: understanding tissue-specific disease mechanisms, prioritizing relevant tissues.
-
-Example: "Compare rs429358 effects in brain, liver, and heart"`,
+Example: "Compare the predicted effect of chr19:44908684 T>C in brain, liver and heart"`,
   inputSchema: {
     type: 'object',
     properties: {
-      chromosome: {
-        type: 'string',
-        description: 'Chromosome',
-        pattern: '^chr([1-9]|1[0-9]|2[0-2]|X|Y)$',
-      },
-      position: {
-        type: 'number',
-        description: 'Genomic position',
-        minimum: 1,
-      },
-      ref: {
-        type: 'string',
-        description: 'Reference allele',
-        pattern: '^[ATGCatgc]+$',
-      },
-      alt: {
-        type: 'string',
-        description: 'Alternate allele',
-        pattern: '^[ATGCatgc]+$',
-      },
+      ...VARIANT_PROPERTIES,
       tissues: {
         type: 'array',
-        items: {
-          type: 'string',
-        },
-        description: 'List of tissues to test (default: brain, liver, heart)',
+        items: { type: 'string' },
+        description:
+          'Tissue names (brain, neuron, blood, liver, heart, lung, kidney) or ontology CURIEs. Default: brain, liver, heart',
       },
     },
-    required: ['chromosome', 'position', 'ref', 'alt'],
+    required: VARIANT_REQUIRED,
   },
 };
 
 export const COMPARE_VARIANTS_TOOL: Tool = {
   name: 'compare_variants',
-  description: `Compare two variants side-by-side.
+  description: `Two variants side by side: the strongest predicted effect of each modality for both, and which of the two has the larger absolute quantile per scorer. A comparison of predicted effect sizes, not of severity.
 
-Direct comparison of regulatory impacts between two variants.
+${LIVE_NOTE}
 
-Returns:
-- Impact levels for both variants
-- Expression and splicing changes
-- Which variant is more severe
+${RESEARCH_NOTE}
 
-Perfect for: comparing candidate variants, understanding relative severity.
-
-Example: "Compare rs429358 vs rs7412"`,
+Example: "Compare APOE rs429358 and rs7412"`,
   inputSchema: {
     type: 'object',
-    properties: {
-      variant1: {
-        type: 'object',
-        properties: {
-          chromosome: { type: 'string', pattern: '^chr([1-9]|1[0-9]|2[0-2]|X|Y)$' },
-          position: { type: 'number', minimum: 1 },
-          ref: { type: 'string', pattern: '^[ATGCatgc]+$' },
-          alt: { type: 'string', pattern: '^[ATGCatgc]+$' },
-        },
-        required: ['chromosome', 'position', 'ref', 'alt'],
-      },
-      variant2: {
-        type: 'object',
-        properties: {
-          chromosome: { type: 'string', pattern: '^chr([1-9]|1[0-9]|2[0-2]|X|Y)$' },
-          position: { type: 'number', minimum: 1 },
-          ref: { type: 'string', pattern: '^[ATGCatgc]+$' },
-          alt: { type: 'string', pattern: '^[ATGCatgc]+$' },
-        },
-        required: ['chromosome', 'position', 'ref', 'alt'],
-      },
-    },
+    properties: { variant1: VARIANT_OBJECT, variant2: VARIANT_OBJECT },
     required: ['variant1', 'variant2'],
   },
 };
 
-// Group B Tools: Frequently Needed
+export const PREDICT_SPLICE_IMPACT_TOOL = singleVariantTool(
+  'predict_splice_impact',
+  `Predicted splicing effects of a variant: splice sites, splice site usage and splice junctions, with the gene and junction of each.
 
-export const PREDICT_SPLICE_IMPACT_TOOL: Tool = {
-  name: 'predict_splice_impact',
-  description: `Focus on splicing-specific effects only.
+${LIVE_NOTE}
 
-Analyzes splice sites, splice site usage, and splice junctions.
+${RESEARCH_NOTE}`
+);
 
-Perfect for: investigating splicing variants, understanding splice alterations.
+export const PREDICT_EXPRESSION_IMPACT_TOOL = singleVariantTool(
+  'predict_expression_impact',
+  `Predicted gene expression effects of a variant: RNA-seq (log fold change per gene and tissue) and CAGE.
 
-Example: "Analyze splicing impact of chr6:41129252C>T"`,
-  inputSchema: {
-    type: 'object',
-    properties: {
-      chromosome: { type: 'string', pattern: '^chr([1-9]|1[0-9]|2[0-2]|X|Y)$' },
-      position: { type: 'number', minimum: 1 },
-      ref: { type: 'string', pattern: '^[ATGCatgc]+$' },
-      alt: { type: 'string', pattern: '^[ATGCatgc]+$' },
-      tissue_type: { type: 'string' },
-    },
-    required: ['chromosome', 'position', 'ref', 'alt'],
-  },
-};
+${LIVE_NOTE}
 
-export const PREDICT_EXPRESSION_IMPACT_TOOL: Tool = {
-  name: 'predict_expression_impact',
-  description: `Focus on gene expression effects only.
-
-Analyzes RNA-seq and CAGE predictions for expression changes.
-
-Perfect for: eQTL analysis, expression-related variants.
-
-Example: "Analyze expression impact of rs744373"`,
-  inputSchema: {
-    type: 'object',
-    properties: {
-      chromosome: { type: 'string', pattern: '^chr([1-9]|1[0-9]|2[0-2]|X|Y)$' },
-      position: { type: 'number', minimum: 1 },
-      ref: { type: 'string', pattern: '^[ATGCatgc]+$' },
-      alt: { type: 'string', pattern: '^[ATGCatgc]+$' },
-      tissue_type: { type: 'string' },
-    },
-    required: ['chromosome', 'position', 'ref', 'alt'],
-  },
-};
+${RESEARCH_NOTE}`
+);
 
 export const ANALYZE_GWAS_LOCUS_TOOL: Tool = {
   name: 'analyze_gwas_locus',
-  description: `Analyze all variants in a GWAS locus.
+  description: `Rank the variants of a locus by predicted effect (largest absolute quantile across modalities), to prioritize candidates for follow-up. For single-nucleotide variants only, atlas_lookup_variants or atlas_scan_region is faster and adds the AVI score.
 
-Ranks variants by regulatory impact for fine-mapping and causal variant identification.
+${LIVE_NOTE}
 
-Perfect for: GWAS follow-up, fine-mapping, identifying causal variants.
-
-Example: "Analyze GWAS locus with 10 variants"`,
+${RESEARCH_NOTE}`,
   inputSchema: {
     type: 'object',
     properties: {
-      variants: {
-        type: 'array',
-        items: {
-          type: 'object',
-          properties: {
-            chromosome: { type: 'string' },
-            position: { type: 'number' },
-            ref: { type: 'string' },
-            alt: { type: 'string' },
-          },
-          required: ['chromosome', 'position', 'ref', 'alt'],
-        },
-        minItems: 1,
-      },
-      chromosome: { type: 'string' },
-      start: { type: 'number' },
-      end: { type: 'number' },
+      variants: LIVE_VARIANTS,
+      chromosome: { type: 'string', description: 'Optional: locus chromosome, for the label' },
+      start: { type: 'number', description: 'Optional: locus start, for the label' },
+      end: { type: 'number', description: 'Optional: locus end, for the label' },
     },
     required: ['variants'],
   },
@@ -367,22 +335,18 @@ Example: "Analyze GWAS locus with 10 variants"`,
 
 export const COMPARE_ALLELES_TOOL: Tool = {
   name: 'compare_alleles',
-  description: `Compare different alleles at the same position.
+  description: `Rank the alternate alleles of one position by predicted effect.
 
-Useful for understanding effects of different mutations at a hotspot position.
+${LIVE_NOTE}
 
-Example: "Compare T>C vs T>G vs T>A at chr19:44908684"`,
+${RESEARCH_NOTE}`,
   inputSchema: {
     type: 'object',
     properties: {
-      chromosome: { type: 'string', pattern: '^chr([1-9]|1[0-9]|2[0-2]|X|Y)$' },
-      position: { type: 'number', minimum: 1 },
-      ref: { type: 'string', pattern: '^[ATGCatgc]+$' },
-      alts: {
-        type: 'array',
-        items: { type: 'string', pattern: '^[ATGCatgc]+$' },
-        minItems: 2,
-      },
+      chromosome: CHROMOSOME,
+      position: POSITION,
+      ref: REF,
+      alts: { type: 'array', items: { type: 'string' }, description: 'Alternate alleles (1-20)' },
     },
     required: ['chromosome', 'position', 'ref', 'alts'],
   },
@@ -390,248 +354,173 @@ Example: "Compare T>C vs T>G vs T>A at chr19:44908684"`,
 
 export const BATCH_TISSUE_COMPARISON_TOOL: Tool = {
   name: 'batch_tissue_comparison',
-  description: `Analyze multiple variants across multiple tissues.
+  description: `Rank several variants by predicted effect within each of several tissues: one ranking per tissue.
 
-Efficient batch analysis of variants × tissues combinations.
+${LIVE_NOTE}
 
-Perfect for: large-scale tissue-specificity studies.
-
-Example: "Test 10 variants in brain, liver, heart"`,
+${RESEARCH_NOTE}`,
   inputSchema: {
     type: 'object',
     properties: {
-      variants: {
-        type: 'array',
-        items: {
-          type: 'object',
-          properties: {
-            chromosome: { type: 'string' },
-            position: { type: 'number' },
-            ref: { type: 'string' },
-            alt: { type: 'string' },
-          },
-          required: ['chromosome', 'position', 'ref', 'alt'],
-        },
-        minItems: 1,
-      },
+      variants: LIVE_VARIANTS,
       tissues: {
         type: 'array',
         items: { type: 'string' },
-        minItems: 1,
+        description: 'Tissue names or ontology CURIEs (1-10)',
       },
     },
     required: ['variants', 'tissues'],
   },
 };
 
-// Group C Tools: Occasionally Useful
+export const PREDICT_TF_BINDING_IMPACT_TOOL = singleVariantTool(
+  'predict_tf_binding_impact',
+  `Predicted transcription factor binding effects of a variant (TF ChIP-seq), with the factor and cell type of each.
 
-export const PREDICT_TF_BINDING_IMPACT_TOOL: Tool = {
-  name: 'predict_tf_binding_impact',
-  description: `Focus on transcription factor binding effects only.
+${LIVE_NOTE}
 
-Analyzes TF binding site changes using ChIP-seq predictions.
+${RESEARCH_NOTE}`
+);
 
-Perfect for: TF binding site variants, regulatory element analysis.
+export const PREDICT_CHROMATIN_IMPACT_TOOL = singleVariantTool(
+  'predict_chromatin_impact',
+  `Predicted chromatin accessibility effects of a variant (ATAC-seq and DNase-seq).
 
-Example: "Analyze TF binding impact of chr1:12345678G>A"`,
-  inputSchema: {
-    type: 'object',
-    properties: {
-      chromosome: { type: 'string', pattern: '^chr([1-9]|1[0-9]|2[0-2]|X|Y)$' },
-      position: { type: 'number', minimum: 1 },
-      ref: { type: 'string', pattern: '^[ATGCatgc]+$' },
-      alt: { type: 'string', pattern: '^[ATGCatgc]+$' },
-      tissue_type: { type: 'string' },
-    },
-    required: ['chromosome', 'position', 'ref', 'alt'],
-  },
-};
+${LIVE_NOTE}
 
-export const PREDICT_CHROMATIN_IMPACT_TOOL: Tool = {
-  name: 'predict_chromatin_impact',
-  description: `Focus on chromatin accessibility effects only.
-
-Analyzes DNase and ATAC-seq predictions for chromatin state changes.
-
-Perfect for: enhancer variants, regulatory region analysis.
-
-Example: "Analyze chromatin impact of chr2:23456789C>T"`,
-  inputSchema: {
-    type: 'object',
-    properties: {
-      chromosome: { type: 'string', pattern: '^chr([1-9]|1[0-9]|2[0-2]|X|Y)$' },
-      position: { type: 'number', minimum: 1 },
-      ref: { type: 'string', pattern: '^[ATGCatgc]+$' },
-      alt: { type: 'string', pattern: '^[ATGCatgc]+$' },
-      tissue_type: { type: 'string' },
-    },
-    required: ['chromosome', 'position', 'ref', 'alt'],
-  },
-};
+${RESEARCH_NOTE}`
+);
 
 export const COMPARE_PROTECTIVE_RISK_TOOL: Tool = {
   name: 'compare_protective_risk',
-  description: `Compare protective vs risk alleles directly.
+  description: `Two variants side by side, labelled as the caller names them. The tool compares predicted effect sizes per modality; it does not judge which allele is protective or a risk.
 
-Side-by-side comparison of alleles with opposite disease associations.
+${LIVE_NOTE}
 
-Perfect for: disease mechanism studies, therapeutic target identification.
-
-Example: "Compare APOE protective allele vs risk allele"`,
+${RESEARCH_NOTE}`,
   inputSchema: {
     type: 'object',
-    properties: {
-      protective_variant: {
-        type: 'object',
-        properties: {
-          chromosome: { type: 'string', pattern: '^chr([1-9]|1[0-9]|2[0-2]|X|Y)$' },
-          position: { type: 'number', minimum: 1 },
-          ref: { type: 'string', pattern: '^[ATGCatgc]+$' },
-          alt: { type: 'string', pattern: '^[ATGCatgc]+$' },
-        },
-        required: ['chromosome', 'position', 'ref', 'alt'],
-      },
-      risk_variant: {
-        type: 'object',
-        properties: {
-          chromosome: { type: 'string', pattern: '^chr([1-9]|1[0-9]|2[0-2]|X|Y)$' },
-          position: { type: 'number', minimum: 1 },
-          ref: { type: 'string', pattern: '^[ATGCatgc]+$' },
-          alt: { type: 'string', pattern: '^[ATGCatgc]+$' },
-        },
-        required: ['chromosome', 'position', 'ref', 'alt'],
-      },
-    },
+    properties: { protective_variant: VARIANT_OBJECT, risk_variant: VARIANT_OBJECT },
     required: ['protective_variant', 'risk_variant'],
-  },
-};
-
-export const BATCH_PATHOGENICITY_FILTER_TOOL: Tool = {
-  name: 'batch_pathogenicity_filter',
-  description: `Filter variants by pathogenicity threshold.
-
-Efficiently identifies pathogenic variants from large lists.
-
-Perfect for: VCF filtering, prioritizing clinical variants.
-
-Example: "Filter 100 variants for pathogenicity > 0.7"`,
-  inputSchema: {
-    type: 'object',
-    properties: {
-      variants: {
-        type: 'array',
-        items: {
-          type: 'object',
-          properties: {
-            chromosome: { type: 'string' },
-            position: { type: 'number' },
-            ref: { type: 'string' },
-            alt: { type: 'string' },
-          },
-          required: ['chromosome', 'position', 'ref', 'alt'],
-        },
-        minItems: 1,
-      },
-      threshold: {
-        type: 'number',
-        minimum: 0,
-        maximum: 1,
-        description: 'Pathogenicity threshold (0-1, default: 0.5)',
-      },
-    },
-    required: ['variants'],
   },
 };
 
 export const COMPARE_VARIANTS_SAME_GENE_TOOL: Tool = {
   name: 'compare_variants_same_gene',
-  description: `Compare multiple variants within the same gene.
+  description: `Rank several variants by their predicted effect on one gene. With gene_name, the gene-level scorers (RNA_SEQ, SPLICE_SITES) are restricted to that gene.
 
-Ranks variants by impact within a single gene context.
+${LIVE_NOTE}
 
-Perfect for: gene-level analysis, compound heterozygote analysis.
-
-Example: "Compare 5 BRCA1 variants"`,
+${RESEARCH_NOTE}`,
   inputSchema: {
     type: 'object',
     properties: {
-      variants: {
-        type: 'array',
-        items: {
-          type: 'object',
-          properties: {
-            chromosome: { type: 'string' },
-            position: { type: 'number' },
-            ref: { type: 'string' },
-            alt: { type: 'string' },
-          },
-          required: ['chromosome', 'position', 'ref', 'alt'],
-        },
-        minItems: 2,
-      },
-      gene_name: {
-        type: 'string',
-        description: 'Optional: gene name for context',
-      },
+      variants: LIVE_VARIANTS,
+      gene_name: { type: 'string', description: 'Optional: gene symbol (e.g., APOE)' },
     },
     required: ['variants'],
   },
 };
 
-export const PREDICT_ALLELE_SPECIFIC_EFFECTS_TOOL: Tool = {
-  name: 'predict_allele_specific_effects',
-  description: `Analyze allele-specific regulatory effects.
+export const PREDICT_ALLELE_SPECIFIC_EFFECTS_TOOL = singleVariantTool(
+  'predict_allele_specific_effects',
+  `Predicted expression with the alternate allele against the reference allele: the RNA_SEQ scorer is that log fold change per gene and tissue, and RNA_SEQ_ACTIVE gives the expression level alongside it.
 
-Detailed analysis of how each allele affects gene regulation differently.
+${LIVE_NOTE}
 
-Perfect for: ASE analysis, imprinting studies.
+${RESEARCH_NOTE}`
+);
 
-Example: "Analyze allele-specific effects of chr15:67890123A>G"`,
-  inputSchema: {
-    type: 'object',
-    properties: {
-      chromosome: { type: 'string', pattern: '^chr([1-9]|1[0-9]|2[0-2]|X|Y)$' },
-      position: { type: 'number', minimum: 1 },
-      ref: { type: 'string', pattern: '^[ATGCatgc]+$' },
-      alt: { type: 'string', pattern: '^[ATGCatgc]+$' },
-      tissue_type: { type: 'string' },
-    },
-    required: ['chromosome', 'position', 'ref', 'alt'],
-  },
-};
+export const ANNOTATE_REGULATORY_CONTEXT_TOOL = singleVariantTool(
+  'annotate_regulatory_context',
+  `The predicted effects of a variant across every regulatory modality at once: accessibility, histone marks, TF binding, CAGE, RNA-seq, splice sites, polyadenylation and contact maps. Shows where the predicted effect concentrates; it does not label the variant.
 
-export const ANNOTATE_REGULATORY_CONTEXT_TOOL: Tool = {
-  name: 'annotate_regulatory_context',
-  description: `Provide comprehensive regulatory annotation for a variant.
+${LIVE_NOTE}
 
-Returns detailed regulatory context including all modalities.
-
-Perfect for: variant annotation pipelines, comprehensive reports.
-
-Example: "Annotate regulatory context of chr7:12345678C>A"`,
-  inputSchema: {
-    type: 'object',
-    properties: {
-      chromosome: { type: 'string', pattern: '^chr([1-9]|1[0-9]|2[0-2]|X|Y)$' },
-      position: { type: 'number', minimum: 1 },
-      ref: { type: 'string', pattern: '^[ATGCatgc]+$' },
-      alt: { type: 'string', pattern: '^[ATGCatgc]+$' },
-      tissue_type: { type: 'string' },
-    },
-    required: ['chromosome', 'position', 'ref', 'alt'],
-  },
-};
+${RESEARCH_NOTE}`
+);
 
 export const BATCH_MODALITY_SCREEN_TOOL: Tool = {
   name: 'batch_modality_screen',
-  description: `Screen variants across specific regulatory modalities.
+  description: `Rank several variants by predicted effect within one modality: expression (RNA_SEQ, CAGE), splicing (SPLICE_SITES, SPLICE_SITE_USAGE), tf_binding (CHIP_TF) or chromatin (DNASE, ATAC).
 
-Efficiently tests multiple variants for specific regulatory effects.
+${LIVE_NOTE}
 
-Perfect for: targeted regulatory screens, modality-specific studies.
+${RESEARCH_NOTE}`,
+  inputSchema: {
+    type: 'object',
+    properties: {
+      variants: LIVE_VARIANTS,
+      modality: { type: 'string', enum: ['expression', 'splicing', 'tf_binding', 'chromatin'] },
+    },
+    required: ['variants', 'modality'],
+  },
+};
 
-Example: "Screen 20 variants for splicing effects"`,
+// ----------------------------------------------------------------------------
+// AlphaGenome Atlas tools: precomputed scores, no model call
+// ----------------------------------------------------------------------------
+
+const ATLAS_VARIANT_PROPERTIES = {
+  chromosome: CHROMOSOME,
+  position: POSITION,
+  ref: {
+    type: 'string',
+    description: 'Reference base (one of A, C, G, T). Must match hg38 at this position.',
+    pattern: '^[ATGCatgc]$',
+  },
+  alt: {
+    type: 'string',
+    description: 'Alternate base (one of A, C, G, T)',
+    pattern: '^[ATGCatgc]$',
+  },
+} as const;
+
+export const ATLAS_LIST_SCORERS_TOOL: Tool = {
+  name: 'atlas_list_scorers',
+  description: `List the variant scorers available in the AlphaGenome Atlas, including the AlphaGenome Variant Impact score (AVI_SCORE) and its feature attributions (AVI_SCORE_FEATURE_IMPORTANCE, AVI_SCORE_MODEL_FEATURES).
+
+Returns each scorer's name, number of tracks and the assays behind it. Use these names in the \`scorers\` parameter of the other tools. Every scorer except the AVI ones is also available from live inference under the same name. Cached for the session after the first call.
+
+${ATLAS_SCOPE_NOTE}`,
+  inputSchema: { type: 'object', properties: {} },
+};
+
+export const ATLAS_LOOKUP_VARIANT_TOOL: Tool = {
+  name: 'atlas_lookup_variant',
+  description: `Look up the precomputed AlphaGenome scores of one single-nucleotide variant. No model call, so it answers in seconds.
+
+Returns, per scorer, the strongest tracks for the variant ranked by absolute score, each with its calibrated quantile, gene, tissue or cell type, and assay. Default scorers: AVI_SCORE plus one per modality (RNA_SEQ, CAGE, DNASE, CHIP_HISTONE, CHIP_TF, SPLICE_SITES).
+
+If the reference base does not match hg38, the Atlas says which base it expected and that message is returned as a validation error.
+
+${ATLAS_SCOPE_NOTE}
+
+${SIZE_NOTE}
+
+${RESEARCH_NOTE}
+
+Example: "Look up chr19:44908684 T>C in the AlphaGenome Atlas"`,
+  inputSchema: {
+    type: 'object',
+    properties: { ...ATLAS_VARIANT_PROPERTIES, scorers: SCORERS, top_n: TOP_N },
+    required: VARIANT_REQUIRED,
+  },
+};
+
+export const ATLAS_LOOKUP_VARIANTS_TOOL: Tool = {
+  name: 'atlas_lookup_variants',
+  description: `Look up precomputed AlphaGenome scores for up to 500 single-nucleotide variants in one call and rank them.
+
+Returns one row per variant (its strongest score and where it was seen), ranked. Default scorer: AVI_SCORE (AlphaGenome Variant Impact), one number per variant. With several scorers the ranking uses the largest absolute quantile. Variants the Atlas does not hold and variants it rejects (for example a reference base that does not match hg38) are listed separately with the reason; they do not fail the call.
+
+${ATLAS_SCOPE_NOTE}
+
+${SIZE_NOTE}
+
+${RESEARCH_NOTE}
+
+Example: "Rank these 200 GWAS SNPs by their Atlas scores"`,
   inputSchema: {
     type: 'object',
     properties: {
@@ -640,72 +529,64 @@ Example: "Screen 20 variants for splicing effects"`,
         items: {
           type: 'object',
           properties: {
-            chromosome: { type: 'string' },
-            position: { type: 'number' },
-            ref: { type: 'string' },
-            alt: { type: 'string' },
+            ...ATLAS_VARIANT_PROPERTIES,
+            variant_id: {
+              type: 'string',
+              description: 'Optional: variant identifier (e.g., rs number)',
+            },
           },
-          required: ['chromosome', 'position', 'ref', 'alt'],
+          required: VARIANT_REQUIRED,
         },
+        description: 'Single-nucleotide variants to look up (1-500)',
         minItems: 1,
+        maxItems: 500,
       },
-      modality: {
-        type: 'string',
-        enum: ['expression', 'splicing', 'tf_binding', 'chromatin'],
-        description: 'Regulatory modality to screen',
-      },
+      scorers: SCORERS,
+      top_n: TOP_N,
     },
-    required: ['variants', 'modality'],
+    required: ['variants'],
   },
 };
 
-export const GENERATE_VARIANT_REPORT_TOOL: Tool = {
-  name: 'generate_variant_report',
-  description: `Generate comprehensive clinical report for a variant.
+export const ATLAS_SCAN_REGION_TOOL: Tool = {
+  name: 'atlas_scan_region',
+  description: `Scan a genomic region in the AlphaGenome Atlas: every possible single-nucleotide substitution in the interval, ranked. Answers "which positions in this region matter most?" without running the model.
 
-Full analysis with all modalities and clinical interpretation.
+Region width: at most 10,000 bp. Up to 50,000 bp only with allow_large_region=true. A scan is one API request per 32 bp under a requests-per-minute quota, so a large scan can take minutes. If the quota or the time limit stops a scan early, the partial result is returned, marked "Incomplete", with the range that was really scanned; the ranking then covers that range only.
 
-Perfect for: clinical reports, diagnostic summaries.
+Default scorer: AVI_SCORE (about 7 seconds for 2,000 bp). Multi-track scorers are much slower (2,000 bp: DNASE 17 s, CHIP_TF 86 s). Scorers with one row per gene or junction (RNA_SEQ, SPLICE_JUNCTIONS, ...) cannot be used for a scan: scan with AVI_SCORE, then use atlas_lookup_variant on the top variants.
 
-Example: "Generate full report for chr13:32912345G>T"`,
+${ATLAS_SCOPE_NOTE}
+
+${SIZE_NOTE}
+
+${RESEARCH_NOTE}
+
+Example: "Scan chr17:49209289-49211289 and show the 10 substitutions with the largest predicted effect"`,
   inputSchema: {
     type: 'object',
     properties: {
-      chromosome: { type: 'string', pattern: '^chr([1-9]|1[0-9]|2[0-2]|X|Y)$' },
-      position: { type: 'number', minimum: 1 },
-      ref: { type: 'string', pattern: '^[ATGCatgc]+$' },
-      alt: { type: 'string', pattern: '^[ATGCatgc]+$' },
-      tissue_type: { type: 'string' },
+      chromosome: CHROMOSOME,
+      start: { type: 'number', description: 'Start position (1-based, hg38)', minimum: 1 },
+      end: {
+        type: 'number',
+        description:
+          'End position (greater than start; at most start + 10,000, or start + 50,000 with allow_large_region)',
+        minimum: 1,
+      },
+      allow_large_region: {
+        type: 'boolean',
+        description:
+          'Set to true to scan more than 10,000 bp (up to 50,000 bp). Slower, and the result may be incomplete (default: false)',
+      },
+      scorers: SCORERS,
+      top_n: TOP_N,
     },
-    required: ['chromosome', 'position', 'ref', 'alt'],
+    required: ['chromosome', 'start', 'end'],
   },
 };
 
-export const EXPLAIN_VARIANT_IMPACT_TOOL: Tool = {
-  name: 'explain_variant_impact',
-  description: `Provide human-readable explanation of variant impact.
-
-Translates technical predictions into plain language.
-
-Perfect for: patient reports, non-technical summaries.
-
-Example: "Explain the impact of chr9:12345678A>C in simple terms"`,
-  inputSchema: {
-    type: 'object',
-    properties: {
-      chromosome: { type: 'string', pattern: '^chr([1-9]|1[0-9]|2[0-2]|X|Y)$' },
-      position: { type: 'number', minimum: 1 },
-      ref: { type: 'string', pattern: '^[ATGCatgc]+$' },
-      alt: { type: 'string', pattern: '^[ATGCatgc]+$' },
-      tissue_type: { type: 'string' },
-    },
-    required: ['chromosome', 'position', 'ref', 'alt'],
-  },
-};
-
-/**
- * All available tools
- */
+// Export all tools
 export const ALL_TOOLS: Tool[] = [
   PREDICT_VARIANT_TOOL,
   BATCH_SCORE_TOOL,
@@ -727,4 +608,8 @@ export const ALL_TOOLS: Tool[] = [
   BATCH_MODALITY_SCREEN_TOOL,
   GENERATE_VARIANT_REPORT_TOOL,
   EXPLAIN_VARIANT_IMPACT_TOOL,
+  ATLAS_LIST_SCORERS_TOOL,
+  ATLAS_LOOKUP_VARIANT_TOOL,
+  ATLAS_LOOKUP_VARIANTS_TOOL,
+  ATLAS_SCAN_REGION_TOOL,
 ];
