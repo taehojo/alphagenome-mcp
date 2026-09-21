@@ -49,6 +49,51 @@ ALL_MODALITIES = [
     dna_client.OutputType.CONTACT_MAPS
 ]
 
+# Output type names accepted by the MCP tools, and the SDK outputs each one needs.
+OUTPUT_TYPE_NAMES = {
+    'rna_seq': [dna_client.OutputType.RNA_SEQ],
+    'cage': [dna_client.OutputType.CAGE],
+    'splice': [
+        dna_client.OutputType.SPLICE_SITES,
+        dna_client.OutputType.SPLICE_SITE_USAGE,
+        dna_client.OutputType.SPLICE_JUNCTIONS,
+    ],
+    'histone': [dna_client.OutputType.CHIP_HISTONE],
+    'tf_binding': [dna_client.OutputType.CHIP_TF],
+    'dnase': [dna_client.OutputType.DNASE],
+    'atac': [dna_client.OutputType.ATAC],
+    'contact_map': [dna_client.OutputType.CONTACT_MAPS],
+}
+
+
+def resolve_output_types(requested) -> list:
+    """SDK OutputType enums for a request.
+
+    The MCP schema sends names such as "rna_seq"; the SDK only accepts its own
+    enum. Internal callers already pass enums, which are kept as they are.
+    """
+    if not isinstance(requested, list) or not requested:
+        return ALL_MODALITIES
+    resolved = []
+    for item in requested:
+        if isinstance(item, dna_client.OutputType):
+            candidates = [item]
+        else:
+            name = str(item).strip()
+            candidates = OUTPUT_TYPE_NAMES.get(name.lower())
+            if candidates is None:
+                try:
+                    candidates = [dna_client.OutputType[name.upper()]]
+                except KeyError:
+                    raise ValueError(
+                        f"Unknown output type: {item!r}. Use one of {sorted(OUTPUT_TYPE_NAMES)}"
+                    )
+        for candidate in candidates:
+            if candidate not in resolved:
+                resolved.append(candidate)
+    return resolved
+
+
 # Tissue type to ontology term mapping
 TISSUE_ONTOLOGY_MAP = {
     "brain": "UBERON:0000955",
@@ -186,7 +231,7 @@ def predict_variant_effect(client, params: Dict[str, Any]) -> Dict[str, Any]:
         interval=interval,
         variant=variant,
         ontology_terms=[ontology_term],
-        requested_outputs=output_types if isinstance(output_types, list) else ALL_MODALITIES
+        requested_outputs=resolve_output_types(output_types)
     )
 
     # Process predictions for each modality
