@@ -100,9 +100,27 @@ jobs:
             echo "npm publish failed for a reason staging would not fix"; exit "$status"
           fi
           echo "Direct publishing is not allowed for this publisher; staging instead."
+          # The exit status is read from PIPESTATUS: piping into tee would
+          # otherwise report tee's success and hide a failed staging.
+          set +e
           npm stage publish --provenance --access public 2>&1 | tee stage.log
+          stage_status=${PIPESTATUS[0]}
+          set -e
+          APPROVE="A maintainer approves it with 2FA: \`npm stage list @jolab/alphagenome-mcp\`, then \`npm stage approve <stage-id>\`."
+          if [ "$stage_status" -ne 0 ]; then
+            if grep -q "E409" stage.log; then
+              {
+                echo "@jolab/alphagenome-mcp@${VERSION} is already staged and still waiting for approval. It is NOT on npm yet."
+                echo "${APPROVE}"
+              } | tee -a "$GITHUB_STEP_SUMMARY"
+              echo "::warning::${VERSION} is already staged and waiting for approval; nothing new was uploaded."
+              exit 0
+            fi
+            echo "npm stage publish failed"; exit "$stage_status"
+          fi
           {
             echo "Staged @jolab/alphagenome-mcp@${VERSION}. It is NOT on npm yet."
-            echo "A maintainer approves it with 2FA: \`npm stage list @jolab/alphagenome-mcp\`, then \`npm stage approve <stage-id>\`."
-            echo '```'; grep -iE "stage|id" stage.log | tail -5; echo '```'
+            echo "${APPROVE}"
+            echo '```'; grep -iE "staged" stage.log | tail -3; echo '```'
           } >> "$GITHUB_STEP_SUMMARY"
+          echo "::warning::${VERSION} was staged, not published. It needs a maintainer's approval."
