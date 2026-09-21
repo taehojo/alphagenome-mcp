@@ -3,6 +3,7 @@
 import { spawn } from 'child_process';
 import path from 'path';
 import { fileURLToPath } from 'url';
+import { getBridgeTimeoutMs, getPythonCandidates } from './utils/config.js';
 import {
   VariantPredictionParams,
   RegionAnalysisParams,
@@ -18,13 +19,39 @@ import {
 } from './types.js';
 
 // Re-export error classes for use in index.ts
-export {
-  ApiKeyError,
-  RateLimitError,
-  ValidationError,
-  NetworkError,
-  ApiError,
-} from './types.js';
+export { ApiKeyError, RateLimitError, ValidationError, NetworkError, ApiError } from './types.js';
+
+interface BridgeSuccess<T> {
+  success: true;
+  data: T;
+}
+
+interface BridgeFailure {
+  success: false;
+  error?: string;
+  error_type?: string;
+}
+
+type BridgeResponse<T> = BridgeSuccess<T> | BridgeFailure;
+
+/** Raised when one candidate interpreter does not exist, so the next can be tried. */
+class InterpreterNotFoundError extends Error {}
+
+/**
+ * Let typed errors through unchanged and wrap anything else.
+ */
+function rethrow(error: unknown, label: string): never {
+  if (
+    error instanceof ApiError ||
+    error instanceof ApiKeyError ||
+    error instanceof RateLimitError ||
+    error instanceof ValidationError ||
+    error instanceof NetworkError
+  ) {
+    throw error;
+  }
+  throw new ApiError(`${label} failed: ${error}`, 500);
+}
 
 /**
  * AlphaGenome API Client
@@ -63,96 +90,147 @@ export class AlphaGenomeClient {
   }
 
   /**
+   * Turn a failed bridge response into the matching typed error.
+   *
+   * The bridge reports failures as JSON on stdout (`success: false`) and also
+   * exits non-zero, so the JSON has to be read before the exit code is judged.
+   */
+  private static toTypedError(response: BridgeFailure): Error {
+    const message = response.error || 'Unknown error from Python bridge';
+    switch (response.error_type) {
+      case 'ValidationError':
+      case 'ValueError':
+        return new ValidationError(message);
+      case 'ApiKeyError':
+        return new ApiKeyError(message);
+      case 'RateLimitError':
+        return new RateLimitError(message);
+      case 'NetworkError':
+      case 'TimeoutError':
+        return new NetworkError(message);
+      default:
+        return new ApiError(message, 500);
+    }
+  }
+
+  /**
    * Call the Python bridge with a request
    *
-   * @param action - The action to perform (predict_variant, analyze_region, batch_score)
+   * @param action - The bridge action to perform
    * @param params - Action-specific parameters
    * @returns Promise resolving to the API response
    */
-  private async callPythonBridge<T>(action: string, params: any): Promise<T> {
+  private async callPythonBridge<T>(action: string, params: unknown): Promise<T> {
+    const requestJson = JSON.stringify({ action, api_key: this.apiKey, params });
+    const candidates = getPythonCandidates();
+    const timeoutMs = getBridgeTimeoutMs();
+
+    let lastSpawnError: Error | undefined;
+    for (const executable of candidates) {
+      try {
+        return await this.runBridge<T>(executable, requestJson, timeoutMs);
+      } catch (error) {
+        if (error instanceof InterpreterNotFoundError) {
+          lastSpawnError = error;
+          continue;
+        }
+        throw error;
+      }
+    }
+
+    throw new ApiError(
+      `No Python interpreter found (tried: ${candidates.join(', ')}). ` +
+        'Install Python 3.10 or newer with `pip install alphagenome`, or set ' +
+        'ALPHAGENOME_PYTHON to the interpreter to use. ' +
+        (lastSpawnError ? `Last error: ${lastSpawnError.message}` : ''),
+      500
+    );
+  }
+
+  /**
+   * Run the bridge once with a specific interpreter.
+   */
+  private runBridge<T>(executable: string, requestJson: string, timeoutMs: number): Promise<T> {
     return new Promise((resolve, reject) => {
-      const request = {
-        action,
-        api_key: this.apiKey,
-        params,
-      };
-
-      const requestJson = JSON.stringify(request);
-
-      // Spawn Python process
-      const pythonProcess = spawn('python3', [this.pythonBridgePath]);
+      const pythonProcess = spawn(executable, [this.pythonBridgePath]);
 
       let stdoutData = '';
       let stderrData = '';
+      let settled = false;
 
-      // Collect stdout
+      const finish = (fn: () => void) => {
+        if (settled) return;
+        settled = true;
+        clearTimeout(timer);
+        fn();
+      };
+
+      const timer = setTimeout(() => {
+        finish(() => {
+          pythonProcess.kill();
+          reject(
+            new NetworkError(
+              `AlphaGenome request timed out after ${timeoutMs} ms. ` +
+                'Raise ALPHAGENOME_TIMEOUT_MS for large regions or batches.'
+            )
+          );
+        });
+      }, timeoutMs);
+
       pythonProcess.stdout.on('data', (data) => {
         stdoutData += data.toString();
       });
 
-      // Collect stderr (for logging)
+      // stderr carries bridge logs only; stdout carries the JSON response.
       pythonProcess.stderr.on('data', (data) => {
         stderrData += data.toString();
       });
 
-      // Handle process completion
       pythonProcess.on('close', (code) => {
-        if (code !== 0) {
-          reject(
-            new ApiError(
-              `Python bridge exited with code ${code}: ${stderrData}`,
-              500,
-              { stderr: stderrData }
-            )
-          );
-          return;
-        }
+        finish(() => {
+          let response: BridgeResponse<T> | undefined;
+          try {
+            response = JSON.parse(stdoutData) as BridgeResponse<T>;
+          } catch {
+            response = undefined;
+          }
 
-        try {
-          const response = JSON.parse(stdoutData);
-
-          if (!response.success) {
-            // Handle specific error types
-            if (response.error_type === 'ValueError') {
-              reject(new ValidationError(response.error));
-            } else if (response.error?.includes('rate limit')) {
-              reject(new RateLimitError(response.error));
-            } else if (response.error?.includes('API key')) {
-              reject(new ApiKeyError(response.error));
-            } else {
-              reject(new ApiError(response.error, 500));
-            }
+          if (response && response.success) {
+            resolve(response.data);
             return;
           }
 
-          resolve(response.data as T);
-        } catch (parseError) {
+          if (response && !response.success) {
+            reject(AlphaGenomeClient.toTypedError(response));
+            return;
+          }
+
           reject(
             new ApiError(
-              `Failed to parse Python bridge response: ${parseError}`,
+              code === 0
+                ? 'Python bridge returned a response that is not valid JSON'
+                : `Python bridge exited with code ${code}: ${stderrData.trim()}`,
               500,
-              { stdout: stdoutData }
+              { stderr: stderrData, stdout: stdoutData.slice(0, 2000) }
             )
           );
-        }
+        });
       });
 
-      // Handle process errors
-      pythonProcess.on('error', (error) => {
-        if (error.message.includes('ENOENT')) {
-          reject(
-            new ApiError(
-              'Python3 not found. Please ensure Python 3 is installed and in your PATH. ' +
-                'Also ensure you have installed alphagenome: pip install alphagenome',
-              500
-            )
-          );
-        } else {
-          reject(new NetworkError(`Failed to spawn Python process: ${error.message}`));
-        }
+      pythonProcess.on('error', (error: NodeJS.ErrnoException) => {
+        finish(() => {
+          if (error.code === 'ENOENT') {
+            reject(new InterpreterNotFoundError(`${executable}: not found`));
+          } else {
+            reject(new NetworkError(`Failed to spawn Python process: ${error.message}`));
+          }
+        });
       });
 
-      // Send request to Python process via stdin
+      // The API key travels on stdin, never on the command line.
+      pythonProcess.stdin.on('error', () => {
+        // Ignored: a missing interpreter surfaces through the 'error' event above.
+      });
       pythonProcess.stdin.write(requestJson);
       pythonProcess.stdin.end();
     });
@@ -177,10 +255,7 @@ export class AlphaGenomeClient {
 
       return result;
     } catch (error) {
-      if (error instanceof ApiError) {
-        throw error;
-      }
-      throw new ApiError(`Variant prediction failed: ${error}`, 500);
+      rethrow(error, 'Variant prediction');
     }
   }
 
@@ -202,10 +277,7 @@ export class AlphaGenomeClient {
 
       return result;
     } catch (error) {
-      if (error instanceof ApiError) {
-        throw error;
-      }
-      throw new ApiError(`Region analysis failed: ${error}`, 500);
+      rethrow(error, 'Region analysis');
     }
   }
 
@@ -225,10 +297,7 @@ export class AlphaGenomeClient {
 
       return result;
     } catch (error) {
-      if (error instanceof ApiError) {
-        throw error;
-      }
-      throw new ApiError(`Batch scoring failed: ${error}`, 500);
+      rethrow(error, 'Batch scoring');
     }
   }
 
@@ -245,8 +314,7 @@ export class AlphaGenomeClient {
         tissue_type: params.tissue_type,
       });
     } catch (error) {
-      if (error instanceof ApiError) throw error;
-      throw new ApiError(`Pathogenicity assessment failed: ${error}`, 500);
+      rethrow(error, 'Pathogenicity assessment');
     }
   }
 
@@ -257,8 +325,7 @@ export class AlphaGenomeClient {
     try {
       return await this.callPythonBridge('predict_tissue_specific', params);
     } catch (error) {
-      if (error instanceof ApiError) throw error;
-      throw new ApiError(`Tissue-specific prediction failed: ${error}`, 500);
+      rethrow(error, 'Tissue-specific prediction');
     }
   }
 
@@ -269,8 +336,7 @@ export class AlphaGenomeClient {
     try {
       return await this.callPythonBridge('compare_variants', params);
     } catch (error) {
-      if (error instanceof ApiError) throw error;
-      throw new ApiError(`Variant comparison failed: ${error}`, 500);
+      rethrow(error, 'Variant comparison');
     }
   }
 
@@ -287,8 +353,7 @@ export class AlphaGenomeClient {
         tissue_type: params.tissue_type,
       });
     } catch (error) {
-      if (error instanceof ApiError) throw error;
-      throw new ApiError(`Splice impact prediction failed: ${error}`, 500);
+      rethrow(error, 'Splice impact prediction');
     }
   }
 
@@ -305,8 +370,7 @@ export class AlphaGenomeClient {
         tissue_type: params.tissue_type,
       });
     } catch (error) {
-      if (error instanceof ApiError) throw error;
-      throw new ApiError(`Expression impact prediction failed: ${error}`, 500);
+      rethrow(error, 'Expression impact prediction');
     }
   }
 
@@ -317,8 +381,7 @@ export class AlphaGenomeClient {
     try {
       return await this.callPythonBridge('analyze_gwas_locus', params);
     } catch (error) {
-      if (error instanceof ApiError) throw error;
-      throw new ApiError(`GWAS locus analysis failed: ${error}`, 500);
+      rethrow(error, 'GWAS locus analysis');
     }
   }
 
@@ -329,8 +392,7 @@ export class AlphaGenomeClient {
     try {
       return await this.callPythonBridge('compare_alleles', params);
     } catch (error) {
-      if (error instanceof ApiError) throw error;
-      throw new ApiError(`Allele comparison failed: ${error}`, 500);
+      rethrow(error, 'Allele comparison');
     }
   }
 
@@ -341,8 +403,7 @@ export class AlphaGenomeClient {
     try {
       return await this.callPythonBridge('batch_tissue_comparison', params);
     } catch (error) {
-      if (error instanceof ApiError) throw error;
-      throw new ApiError(`Batch tissue comparison failed: ${error}`, 500);
+      rethrow(error, 'Batch tissue comparison');
     }
   }
 
@@ -353,8 +414,7 @@ export class AlphaGenomeClient {
     try {
       return await this.callPythonBridge('predict_tf_binding_impact', params);
     } catch (error) {
-      if (error instanceof ApiError) throw error;
-      throw new ApiError(`TF binding impact prediction failed: ${error}`, 500);
+      rethrow(error, 'TF binding impact prediction');
     }
   }
 
@@ -365,8 +425,7 @@ export class AlphaGenomeClient {
     try {
       return await this.callPythonBridge('predict_chromatin_impact', params);
     } catch (error) {
-      if (error instanceof ApiError) throw error;
-      throw new ApiError(`Chromatin impact prediction failed: ${error}`, 500);
+      rethrow(error, 'Chromatin impact prediction');
     }
   }
 
@@ -377,8 +436,7 @@ export class AlphaGenomeClient {
     try {
       return await this.callPythonBridge('compare_protective_risk', params);
     } catch (error) {
-      if (error instanceof ApiError) throw error;
-      throw new ApiError(`Protective vs risk comparison failed: ${error}`, 500);
+      rethrow(error, 'Protective vs risk comparison');
     }
   }
 
@@ -389,8 +447,7 @@ export class AlphaGenomeClient {
     try {
       return await this.callPythonBridge('batch_pathogenicity_filter', params);
     } catch (error) {
-      if (error instanceof ApiError) throw error;
-      throw new ApiError(`Batch pathogenicity filter failed: ${error}`, 500);
+      rethrow(error, 'Batch pathogenicity filter');
     }
   }
 
@@ -401,8 +458,7 @@ export class AlphaGenomeClient {
     try {
       return await this.callPythonBridge('compare_variants_same_gene', params);
     } catch (error) {
-      if (error instanceof ApiError) throw error;
-      throw new ApiError(`Same-gene variant comparison failed: ${error}`, 500);
+      rethrow(error, 'Same-gene variant comparison');
     }
   }
 
@@ -413,8 +469,7 @@ export class AlphaGenomeClient {
     try {
       return await this.callPythonBridge('predict_allele_specific_effects', params);
     } catch (error) {
-      if (error instanceof ApiError) throw error;
-      throw new ApiError(`Allele-specific effects prediction failed: ${error}`, 500);
+      rethrow(error, 'Allele-specific effects prediction');
     }
   }
 
@@ -425,8 +480,7 @@ export class AlphaGenomeClient {
     try {
       return await this.callPythonBridge('annotate_regulatory_context', params);
     } catch (error) {
-      if (error instanceof ApiError) throw error;
-      throw new ApiError(`Regulatory context annotation failed: ${error}`, 500);
+      rethrow(error, 'Regulatory context annotation');
     }
   }
 
@@ -437,8 +491,7 @@ export class AlphaGenomeClient {
     try {
       return await this.callPythonBridge('batch_modality_screen', params);
     } catch (error) {
-      if (error instanceof ApiError) throw error;
-      throw new ApiError(`Batch modality screen failed: ${error}`, 500);
+      rethrow(error, 'Batch modality screen');
     }
   }
 
@@ -449,8 +502,7 @@ export class AlphaGenomeClient {
     try {
       return await this.callPythonBridge('generate_variant_report', params);
     } catch (error) {
-      if (error instanceof ApiError) throw error;
-      throw new ApiError(`Variant report generation failed: ${error}`, 500);
+      rethrow(error, 'Variant report generation');
     }
   }
 
@@ -461,8 +513,7 @@ export class AlphaGenomeClient {
     try {
       return await this.callPythonBridge('explain_variant_impact', params);
     } catch (error) {
-      if (error instanceof ApiError) throw error;
-      throw new ApiError(`Variant impact explanation failed: ${error}`, 500);
+      rethrow(error, 'Variant impact explanation');
     }
   }
 

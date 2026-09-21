@@ -59,9 +59,6 @@ export function formatVariantResult(result: VariantResult): string {
   if (result.predictions.rna_seq) {
     const rna = result.predictions.rna_seq;
     output += `### RNA Expression Impact\n`;
-    output += `- **Prediction Confidence**: ${rna.confidence.toFixed(2)} (${getConfidenceLabel(
-      rna.confidence
-    )})\n`;
     output += `- **Fold Change**: ${rna.fold_change.toFixed(2)}x ${
       rna.fold_change < 0 ? 'decrease' : 'increase'
     }\n`;

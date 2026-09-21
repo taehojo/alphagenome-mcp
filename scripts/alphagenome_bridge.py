@@ -19,11 +19,19 @@ from typing import Dict, Any, List, Optional
 try:
     from alphagenome.data import genome
     from alphagenome.models import dna_client
-except ImportError:
+except ImportError as import_error:
+    # stdout carries the JSON response and nothing else, so the Node side can
+    # always parse it. Human-readable detail goes to stderr.
+    print(f"alphagenome import failed: {import_error}", file=sys.stderr)
     print(json.dumps({
         "success": False,
-        "error": "AlphaGenome package not installed. Run: pip install alphagenome"
-    }), file=sys.stderr)
+        "error": (
+            "AlphaGenome package not installed for this interpreter "
+            f"({sys.executable}). Requires Python 3.10 or newer: pip install alphagenome. "
+            "Set ALPHAGENOME_PYTHON to choose a different interpreter."
+        ),
+        "error_type": "ApiError"
+    }))
     sys.exit(1)
 
 # All 11 AlphaGenome modalities (matching reference implementation)
@@ -51,6 +59,38 @@ TISSUE_ONTOLOGY_MAP = {
     "lung": "UBERON:0002048",
     "kidney": "UBERON:0002113"
 }
+
+def grpc_status_name(error: BaseException) -> Optional[str]:
+    """Name of the gRPC status behind an exception, if there is one.
+
+    The SDK re-raises some gRPC errors as built-in exceptions and keeps the
+    original call as __cause__, so both places are checked.
+    """
+    for candidate in (error, getattr(error, '__cause__', None)):
+        code = getattr(candidate, 'code', None)
+        if callable(code):
+            try:
+                return code().name
+            except Exception:
+                continue
+    return None
+
+
+def classify_error(error: BaseException) -> str:
+    """Map an exception to the error_type understood by the Node client."""
+    status = grpc_status_name(error)
+    if isinstance(error, PermissionError) or status in ('UNAUTHENTICATED', 'PERMISSION_DENIED'):
+        return 'ApiKeyError'
+    if status == 'RESOURCE_EXHAUSTED':
+        return 'RateLimitError'
+    if isinstance(error, TimeoutError) or status == 'DEADLINE_EXCEEDED':
+        return 'TimeoutError'
+    if status in ('UNAVAILABLE', 'CANCELLED', 'ABORTED'):
+        return 'NetworkError'
+    if isinstance(error, (ValueError, IndexError, KeyError, TypeError)):
+        return 'ValidationError'
+    return 'ApiError'
+
 
 def safe_max_effect(values_alt, values_ref, modality_name: str) -> float:
     """
@@ -171,8 +211,7 @@ def predict_variant_effect(client, params: Dict[str, Any]) -> Dict[str, Any]:
             predictions['rna_seq'] = {
                 'reference_score': ref_mean,
                 'alternate_score': alt_mean,
-                'fold_change': rna_fc,
-                'confidence': 0.85  # Placeholder - would need actual confidence from model
+                'fold_change': rna_fc
             }
 
         # Splice site analysis
@@ -791,7 +830,7 @@ def main():
         params = request.get('params', {})
 
         if not api_key:
-            raise ValueError("API key is required")
+            raise PermissionError("API key is required")
 
         # Create AlphaGenome client
         client = dna_client.create(api_key)
@@ -849,11 +888,11 @@ def main():
         sys.exit(0)
 
     except Exception as e:
-        # Return error response
+        print(f"bridge error: {type(e).__name__}: {e}", file=sys.stderr)
         response = {
             'success': False,
-            'error': str(e),
-            'error_type': type(e).__name__
+            'error': str(e) or type(e).__name__,
+            'error_type': classify_error(e)
         }
         print(json.dumps(response))
         sys.exit(1)
