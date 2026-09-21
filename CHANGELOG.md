@@ -9,7 +9,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 - README is English only. The Korean half duplicated the English one and doubled its length; it is removed, together with the language switcher
-- README opens with the how-it-works diagram (`docs/media/how-it-works.png`) and a three-minute demo video, and shows a longer illustrated explainer of the research workflow (`docs/media/explainer.png`) near the end, under "Why this server exists". `docs/` is not part of the npm package
+- README opens with the how-it-works diagram (`docs/media/how-it-works.png`) and a demo video (the three-minute recording shown at 2x speed, since GitHub's player has no default playback rate), and shows a longer illustrated explainer of the research workflow (`docs/media/explainer.png`) near the end, under "Why this server exists". `docs/` is not part of the npm package
+- README links to the rarevariants study browser (AlphaGenome scores for rare variants in 85 Alzheimer's disease genes), and states that its scores were computed with the SDK directly, not with this server
 
 ## [0.3.0] - 2026-09-21
 
