@@ -1,5 +1,7 @@
 # AlphaGenome MCP Server - API Documentation
 
+> **Outdated.** This page describes version 0.1 and has not been updated: it documents a tool that no longer exists (`analyze_region`) and output fields (impact levels, clinical interpretation, recommendations) that were removed in 0.3.0. The current tools, parameters and outputs are in the [README](../README.md) and the [CHANGELOG](../CHANGELOG.md). Results are model predictions for research prioritization, not clinical classifications.
+
 ⚠️ **MOCK MODE**: Currently uses simulated data. Real AlphaGenome API integration pending.
 
 ## Available Tools
