@@ -12,7 +12,8 @@
     "build/",
     "!build/tests/",
     "scripts/",
-    "!scripts/__pycache__/",
+    "!scripts/tests/",
+    "!scripts/**/__pycache__/",
     "requirements.txt",
     "README.md",
     "LICENSE",
@@ -21,7 +22,7 @@
   "scripts": {
     "build": "tsc",
     "dev": "tsc --watch",
-    "test": "npm run build && node --test build/tests/validation.test.js build/tests/formatting.test.js build/tests/routing.test.js build/tests/config.test.js build/tests/routed-tools.test.js",
+    "test": "npm run build && node --test build/tests/validation.test.js build/tests/formatting.test.js build/tests/routing.test.js build/tests/config.test.js build/tests/variant-tools.test.js build/tests/tools.test.js",
     "lint": "eslint \"src/**/*.ts\"",
     "lint:fix": "eslint \"src/**/*.ts\" --fix",
     "format": "prettier --write \"src/**/*.ts\"",
@@ -29,7 +30,8 @@
     "prepare": "npm run build",
     "prepublishOnly": "npm run lint",
     "clean": "rm -rf build/",
-    "typecheck": "tsc --noEmit"
+    "typecheck": "tsc --noEmit",
+    "test:python": "python -m unittest discover -s scripts/tests"
   },
   "keywords": [
     "mcp",
