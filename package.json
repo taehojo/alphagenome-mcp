@@ -1,7 +1,7 @@
 {
   "name": "@jolab/alphagenome-mcp",
-  "version": "0.2.0",
-  "description": "MCP server integrating Google DeepMind's AlphaGenome for AI-powered genomic variant analysis with Claude Desktop",
+  "version": "0.3.0",
+  "description": "AlphaGenome as a tool for Claude agents: an MCP server that answers single-nucleotide variants from the precomputed AlphaGenome Atlas and indels and other variants with live inference, and always states the source",
   "type": "module",
   "main": "build/index.js",
   "types": "build/index.d.ts",
@@ -10,7 +10,10 @@
   },
   "files": [
     "build/",
+    "!build/tests/",
     "scripts/",
+    "!scripts/tests/",
+    "!scripts/**/__pycache__/",
     "requirements.txt",
     "README.md",
     "LICENSE",
@@ -19,16 +22,18 @@
   "scripts": {
     "build": "tsc",
     "dev": "tsc --watch",
-    "test": "node --test build/tests/**/*.test.js",
-    "test:watch": "node --test --watch",
-    "lint": "eslint src/**/*.ts",
-    "lint:fix": "eslint src/**/*.ts --fix",
-    "format": "prettier --write 'src/**/*.ts'",
-    "format:check": "prettier --check 'src/**/*.ts'",
+    "test": "npm run build && node --test build/tests/validation.test.js build/tests/formatting.test.js build/tests/routing.test.js build/tests/config.test.js build/tests/variant-tools.test.js build/tests/tools.test.js",
+    "lint": "eslint \"src/**/*.ts\"",
+    "lint:fix": "eslint \"src/**/*.ts\" --fix",
+    "format": "prettier --write \"src/**/*.ts\"",
+    "format:check": "prettier --check \"src/**/*.ts\"",
     "prepare": "npm run build",
     "prepublishOnly": "npm run lint",
     "clean": "rm -rf build/",
-    "typecheck": "tsc --noEmit"
+    "typecheck": "tsc --noEmit",
+    "test:python": "python -m unittest discover -s scripts/tests",
+    "docs:api": "npm run build && node docs/generate-api.mjs",
+    "docs:api:check": "node docs/generate-api.mjs --check"
   },
   "keywords": [
     "mcp",
@@ -48,7 +53,10 @@
     "claude-desktop",
     "ai",
     "machine-learning",
-    "anthropic"
+    "anthropic",
+    "atlas",
+    "alphagenome-atlas",
+    "variant-effect"
   ],
   "author": {
     "name": "Taeho Jo",
@@ -66,8 +74,6 @@
   "homepage": "https://github.com/taehojo/alphagenome-mcp#readme",
   "dependencies": {
     "@modelcontextprotocol/sdk": "^0.5.0",
-    "axios": "^1.6.7",
-    "axios-retry": "^4.0.0",
     "zod": "^3.22.4"
   },
   "devDependencies": {

@@ -2,6 +2,7 @@
 
 // src/index.ts
 
+import { createRequire } from 'module';
 import { Server } from '@modelcontextprotocol/sdk/server/index.js';
 import { StdioServerTransport } from '@modelcontextprotocol/sdk/server/stdio.js';
 import {
@@ -12,24 +13,33 @@ import {
 } from '@modelcontextprotocol/sdk/types.js';
 
 import { AlphaGenomeClient } from './alphagenome-client.js';
-import { ApiKeyError, RateLimitError, ValidationError } from './types.js';
-import { ALL_TOOLS } from './tools.js';
 import {
-  validateInput,
-  variantPredictionSchema,
-  regionAnalysisSchema,
-  batchScoreSchema,
-} from './utils/validation.js';
-import { formatVariantResult, formatRegionResult, formatBatchResult } from './utils/formatting.js';
-import type { VariantPredictionParams, RegionAnalysisParams, BatchScoreParams } from './types.js';
+  ApiKeyError,
+  AtlasNotAvailableError,
+  NetworkError,
+  RateLimitError,
+  ValidationError,
+} from './types.js';
+import { ALL_TOOLS } from './tools.js';
+import * as schemas from './utils/validation.js';
+import { validateInput } from './utils/validation.js';
+import {
+  formatRankedVariants,
+  formatRegionScan,
+  formatScorerList,
+  formatVariantScores,
+} from './utils/formatting.js';
+import * as tools from './variant-tools.js';
 
 /**
  * AlphaGenome MCP Server
  *
- * Integrates Google DeepMind's AlphaGenome with Claude Desktop
- * for AI-powered genomic variant analysis.
+ * AlphaGenome as a tool for Claude agents: the precomputed AlphaGenome Atlas
+ * for single-nucleotide variants, live inference for indels and other variants
+ * the Atlas cannot precompute, chosen automatically, with the source stated
+ * on every result.
  *
- * Uses AlphaGenome Python SDK via subprocess bridge for real-time predictions.
+ * Talks to the AlphaGenome Python SDK through a subprocess bridge.
  */
 
 // Parse command-line arguments for API key
@@ -46,11 +56,16 @@ function parseApiKey(): string | undefined {
 
 const CLI_API_KEY = parseApiKey();
 
+// The version reported to MCP clients comes from package.json, so it cannot
+// drift from the published package. build/index.js sits one level below it.
+const require = createRequire(import.meta.url);
+const { version: PACKAGE_VERSION } = require('../package.json') as { version: string };
+
 // Create MCP server
 const server = new Server(
   {
     name: 'alphagenome-mcp',
-    version: '0.1.5',
+    version: PACKAGE_VERSION,
   },
   {
     capabilities: {
@@ -72,22 +87,103 @@ function getClient(): AlphaGenomeClient {
       client = new AlphaGenomeClient(CLI_API_KEY);
     } catch (error) {
       if (error instanceof ApiKeyError) {
-        console.error('\n❌ AlphaGenome API Key Error:\n');
-        console.error(error.message);
-        console.error('\nTo fix this:');
-        console.error('1. Get an API key from https://alphagenome.deepmind.com');
-        console.error('2. Provide it via command-line:');
-        console.error('   --api-key YOUR_API_KEY');
-        console.error('3. Or set it in your environment or Claude config:');
-        console.error('   export ALPHAGENOME_API_KEY=your-key-here');
-        console.error('4. Or use mock mode for testing: ALPHAGENOME_API_KEY=mock\n');
-        process.exit(1);
+        // Report the problem to the caller and keep serving. Exiting here would
+        // take the whole server down the first time any tool is called.
+        throw new McpError(
+          ErrorCode.InvalidRequest,
+          'AlphaGenome API key is missing. Get a key from https://alphagenome.google/api ' +
+            'and set ALPHAGENOME_API_KEY in the "env" block of your MCP client configuration ' +
+            '(preferred), or pass --api-key on the command line.'
+        );
       }
       throw error;
     }
   }
   return client;
 }
+
+// ============================================================================
+// Tool handlers
+// ============================================================================
+
+type Handler = (args: unknown) => Promise<string | Record<string, unknown>>;
+
+/**
+ * Every tool: validate the input, then run it against the client. A handler
+ * returns Markdown, or an object that is sent as JSON. Either way the result
+ * states its source.
+ */
+const HANDLERS: Record<string, Handler> = {
+  // Choose between the Atlas and live inference
+  predict_variant_effect: (args) =>
+    tools.predictVariantEffect(getClient(), validateInput(schemas.variantPredictionSchema, args)),
+  batch_score_variants: (args) =>
+    tools.batchScoreVariants(getClient(), validateInput(schemas.batchScoreSchema, args)),
+  assess_pathogenicity: (args) =>
+    tools.assessPathogenicity(getClient(), validateInput(schemas.variantPredictionSchema, args)),
+  batch_pathogenicity_filter: (args) =>
+    tools.batchPathogenicityFilter(
+      getClient(),
+      validateInput(schemas.pathogenicityFilterSchema, args)
+    ),
+  generate_variant_report: (args) =>
+    tools.generateVariantReport(getClient(), validateInput(schemas.variantPredictionSchema, args)),
+  explain_variant_impact: (args) =>
+    tools.explainVariantImpact(getClient(), validateInput(schemas.variantPredictionSchema, args)),
+
+  // Live inference
+  predict_tissue_specific: (args) =>
+    tools.predictTissueSpecific(getClient(), validateInput(schemas.tissueSpecificSchema, args)),
+  compare_variants: (args) =>
+    tools.compareVariants(getClient(), validateInput(schemas.compareVariantsSchema, args)),
+  predict_splice_impact: (args) =>
+    tools.predictSpliceImpact(getClient(), validateInput(schemas.singleVariantSchema, args)),
+  predict_expression_impact: (args) =>
+    tools.predictExpressionImpact(getClient(), validateInput(schemas.singleVariantSchema, args)),
+  analyze_gwas_locus: (args) =>
+    tools.analyzeGwasLocus(getClient(), validateInput(schemas.gwasLocusSchema, args)),
+  compare_alleles: (args) =>
+    tools.compareAlleles(getClient(), validateInput(schemas.compareAllelesSchema, args)),
+  batch_tissue_comparison: (args) =>
+    tools.batchTissueComparison(getClient(), validateInput(schemas.batchTissueSchema, args)),
+  predict_tf_binding_impact: (args) =>
+    tools.predictTfBindingImpact(getClient(), validateInput(schemas.singleVariantSchema, args)),
+  predict_chromatin_impact: (args) =>
+    tools.predictChromatinImpact(getClient(), validateInput(schemas.singleVariantSchema, args)),
+  compare_protective_risk: (args) =>
+    tools.compareProtectiveRisk(
+      getClient(),
+      validateInput(schemas.compareProtectiveRiskSchema, args)
+    ),
+  compare_variants_same_gene: (args) =>
+    tools.compareVariantsSameGene(getClient(), validateInput(schemas.sameGeneSchema, args)),
+  predict_allele_specific_effects: (args) =>
+    tools.predictAlleleSpecificEffects(
+      getClient(),
+      validateInput(schemas.singleVariantSchema, args)
+    ),
+  annotate_regulatory_context: (args) =>
+    tools.annotateRegulatoryContext(getClient(), validateInput(schemas.singleVariantSchema, args)),
+  batch_modality_screen: (args) =>
+    tools.batchModalityScreen(getClient(), validateInput(schemas.modalityScreenSchema, args)),
+
+  // AlphaGenome Atlas: precomputed scores, no model call
+  atlas_list_scorers: async () => formatScorerList(await getClient().listScorers()),
+  atlas_lookup_variant: async (args) => {
+    const { scorers, top_n, ...variant } = validateInput(schemas.atlasLookupVariantSchema, args);
+    const result = await getClient().scoreVariant('atlas', variant, { scorers, top_n });
+    return formatVariantScores(result, 'Atlas Variant Lookup');
+  },
+  atlas_lookup_variants: async (args) => {
+    const { variants, scorers, top_n } = validateInput(schemas.atlasLookupVariantsSchema, args);
+    const result = await getClient().scoreVariants('atlas', variants, { scorers, top_n });
+    return formatRankedVariants(result, 'Atlas Variant Ranking');
+  },
+  atlas_scan_region: async (args) =>
+    formatRegionScan(
+      await getClient().scanRegion(validateInput(schemas.atlasScanRegionSchema, args))
+    ),
+};
 
 // ============================================================================
 // MCP Request Handlers
@@ -107,180 +203,13 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
   const { name, arguments: args } = request.params;
 
   try {
-    switch (name) {
-      case 'predict_variant_effect': {
-        // Validate input
-        const params = validateInput(variantPredictionSchema, args) as VariantPredictionParams;
-
-        // Call AlphaGenome API
-        const result = await getClient().predictVariant(params);
-
-        // Format output
-        const formatted = formatVariantResult(result);
-
-        return {
-          content: [
-            {
-              type: 'text',
-              text: formatted,
-            },
-          ],
-        };
-      }
-
-      case 'batch_score_variants': {
-        const params = validateInput(batchScoreSchema, args) as BatchScoreParams;
-        const result = await getClient().batchScore(params);
-        const formatted = formatBatchResult(result);
-
-        return {
-          content: [
-            {
-              type: 'text',
-              text: formatted,
-            },
-          ],
-        };
-      }
-
-      case 'assess_pathogenicity': {
-        const params = validateInput(variantPredictionSchema, args) as VariantPredictionParams;
-        const result = await getClient().assessPathogenicity(params);
-        return {
-          content: [{ type: 'text', text: JSON.stringify(result, null, 2) }],
-        };
-      }
-
-      case 'predict_tissue_specific': {
-        const result = await getClient().predictTissueSpecific(args);
-        return {
-          content: [{ type: 'text', text: JSON.stringify(result, null, 2) }],
-        };
-      }
-
-      case 'compare_variants': {
-        const result = await getClient().compareVariants(args);
-        return {
-          content: [{ type: 'text', text: JSON.stringify(result, null, 2) }],
-        };
-      }
-
-      case 'predict_splice_impact': {
-        const params = validateInput(variantPredictionSchema, args) as VariantPredictionParams;
-        const result = await getClient().predictSpliceImpact(params);
-        return {
-          content: [{ type: 'text', text: JSON.stringify(result, null, 2) }],
-        };
-      }
-
-      case 'predict_expression_impact': {
-        const params = validateInput(variantPredictionSchema, args) as VariantPredictionParams;
-        const result = await getClient().predictExpressionImpact(params);
-        return {
-          content: [{ type: 'text', text: JSON.stringify(result, null, 2) }],
-        };
-      }
-
-      case 'analyze_gwas_locus': {
-        const result = await getClient().analyzeGwasLocus(args);
-        return {
-          content: [{ type: 'text', text: JSON.stringify(result, null, 2) }],
-        };
-      }
-
-      case 'compare_alleles': {
-        const result = await getClient().compareAlleles(args);
-        return {
-          content: [{ type: 'text', text: JSON.stringify(result, null, 2) }],
-        };
-      }
-
-      case 'batch_tissue_comparison': {
-        const result = await getClient().batchTissueComparison(args);
-        return {
-          content: [{ type: 'text', text: JSON.stringify(result, null, 2) }],
-        };
-      }
-
-      case 'predict_tf_binding_impact': {
-        const params = validateInput(variantPredictionSchema, args) as VariantPredictionParams;
-        const result = await getClient().predictTfBindingImpact(params);
-        return {
-          content: [{ type: 'text', text: JSON.stringify(result, null, 2) }],
-        };
-      }
-
-      case 'predict_chromatin_impact': {
-        const params = validateInput(variantPredictionSchema, args) as VariantPredictionParams;
-        const result = await getClient().predictChromatinImpact(params);
-        return {
-          content: [{ type: 'text', text: JSON.stringify(result, null, 2) }],
-        };
-      }
-
-      case 'compare_protective_risk': {
-        const result = await getClient().compareProtectiveRisk(args);
-        return {
-          content: [{ type: 'text', text: JSON.stringify(result, null, 2) }],
-        };
-      }
-
-      case 'batch_pathogenicity_filter': {
-        const result = await getClient().batchPathogenicityFilter(args);
-        return {
-          content: [{ type: 'text', text: JSON.stringify(result, null, 2) }],
-        };
-      }
-
-      case 'compare_variants_same_gene': {
-        const result = await getClient().compareVariantsSameGene(args);
-        return {
-          content: [{ type: 'text', text: JSON.stringify(result, null, 2) }],
-        };
-      }
-
-      case 'predict_allele_specific_effects': {
-        const params = validateInput(variantPredictionSchema, args) as VariantPredictionParams;
-        const result = await getClient().predictAlleleSpecificEffects(params);
-        return {
-          content: [{ type: 'text', text: JSON.stringify(result, null, 2) }],
-        };
-      }
-
-      case 'annotate_regulatory_context': {
-        const params = validateInput(variantPredictionSchema, args) as VariantPredictionParams;
-        const result = await getClient().annotateRegulatoryContext(params);
-        return {
-          content: [{ type: 'text', text: JSON.stringify(result, null, 2) }],
-        };
-      }
-
-      case 'batch_modality_screen': {
-        const result = await getClient().batchModalityScreen(args);
-        return {
-          content: [{ type: 'text', text: JSON.stringify(result, null, 2) }],
-        };
-      }
-
-      case 'generate_variant_report': {
-        const params = validateInput(variantPredictionSchema, args) as VariantPredictionParams;
-        const result = await getClient().generateVariantReport(params);
-        return {
-          content: [{ type: 'text', text: JSON.stringify(result, null, 2) }],
-        };
-      }
-
-      case 'explain_variant_impact': {
-        const params = validateInput(variantPredictionSchema, args) as VariantPredictionParams;
-        const result = await getClient().explainVariantImpact(params);
-        return {
-          content: [{ type: 'text', text: JSON.stringify(result, null, 2) }],
-        };
-      }
-
-      default:
-        throw new McpError(ErrorCode.MethodNotFound, `Unknown tool: ${name}`);
+    const handler = HANDLERS[name];
+    if (!handler) {
+      throw new McpError(ErrorCode.MethodNotFound, `Unknown tool: ${name}`);
     }
+    const result = await handler(args);
+    const text = typeof result === 'string' ? result : JSON.stringify(result, null, 2);
+    return { content: [{ type: 'text', text }] };
   } catch (error: unknown) {
     // Handle different error types with appropriate MCP error codes
     if (error instanceof McpError) {
@@ -295,7 +224,11 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
 
       // API errors
       if (error instanceof ApiKeyError) {
-        throw new McpError(ErrorCode.InternalError, `API key error: ${error.message}`);
+        throw new McpError(ErrorCode.InvalidRequest, `API key error: ${error.message}`);
+      }
+
+      if (error instanceof NetworkError) {
+        throw new McpError(ErrorCode.InternalError, `Network error: ${error.message}`);
       }
 
       if (error instanceof RateLimitError) {
@@ -304,6 +237,13 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
 
       if (error instanceof ValidationError) {
         throw new McpError(ErrorCode.InvalidParams, `Validation error: ${error.message}`);
+      }
+
+      if (error instanceof AtlasNotAvailableError) {
+        throw new McpError(
+          ErrorCode.InvalidParams,
+          `Not in the AlphaGenome Atlas: ${error.message} Use source=auto or source=live to run live inference instead.`
+        );
       }
 
       // Generic error

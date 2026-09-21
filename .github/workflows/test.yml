@@ -36,5 +36,21 @@ jobs:
       - name: Build
         run: npm run build
 
+      - name: Unit tests
+        run: npm test
+
+      - name: Tool reference is up to date
+        run: npm run docs:api:check
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Python unit tests (shared summarizer)
+        run: |
+          pip install numpy pandas
+          npm run test:python
+
       - name: Check formatting
         run: npm run format:check
