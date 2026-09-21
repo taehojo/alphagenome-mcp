@@ -13,24 +13,43 @@ import {
 } from '@modelcontextprotocol/sdk/types.js';
 
 import { AlphaGenomeClient } from './alphagenome-client.js';
-import { ApiKeyError, NetworkError, RateLimitError, ValidationError } from './types.js';
+import {
+  ApiKeyError,
+  AtlasNotAvailableError,
+  NetworkError,
+  RateLimitError,
+  ValidationError,
+} from './types.js';
 import { ALL_TOOLS } from './tools.js';
 import {
   validateInput,
   variantPredictionSchema,
-  regionAnalysisSchema,
   batchScoreSchema,
+  atlasLookupVariantSchema,
+  atlasLookupVariantsSchema,
+  atlasScanRegionSchema,
 } from './utils/validation.js';
-import { formatVariantResult, formatRegionResult, formatBatchResult } from './utils/formatting.js';
-import type { VariantPredictionParams, RegionAnalysisParams, BatchScoreParams } from './types.js';
+import {
+  formatAtlasBatch,
+  formatAtlasRegion,
+  formatAtlasScorers,
+  formatAtlasVariant,
+} from './utils/atlas-formatting.js';
+import {
+  assessPathogenicityRouted,
+  batchScoreRouted,
+  predictVariantRouted,
+} from './routed-tools.js';
+import type { VariantPredictionParams } from './types.js';
 
 /**
  * AlphaGenome MCP Server
  *
- * Integrates Google DeepMind's AlphaGenome with Claude Desktop
- * for AI-powered genomic variant analysis.
+ * AlphaGenome as a tool for Claude agents: the precomputed AlphaGenome Atlas
+ * for single-nucleotide variants, live inference for everything else, chosen
+ * automatically, with the source stated on every result.
  *
- * Uses AlphaGenome Python SDK via subprocess bridge for real-time predictions.
+ * Talks to the AlphaGenome Python SDK through a subprocess bridge.
  */
 
 // Parse command-line arguments for API key
@@ -112,47 +131,50 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
 
   try {
     switch (name) {
+      // The three tools below choose between the Atlas and live inference.
+      // The result always states which one answered.
       case 'predict_variant_effect': {
-        // Validate input
-        const params = validateInput(variantPredictionSchema, args) as VariantPredictionParams;
-
-        // Call AlphaGenome API
-        const result = await getClient().predictVariant(params);
-
-        // Format output
-        const formatted = formatVariantResult(result);
-
-        return {
-          content: [
-            {
-              type: 'text',
-              text: formatted,
-            },
-          ],
-        };
+        const params = validateInput(variantPredictionSchema, args);
+        const text = await predictVariantRouted(getClient(), params);
+        return { content: [{ type: 'text', text }] };
       }
 
       case 'batch_score_variants': {
-        const params = validateInput(batchScoreSchema, args) as BatchScoreParams;
-        const result = await getClient().batchScore(params);
-        const formatted = formatBatchResult(result);
-
-        return {
-          content: [
-            {
-              type: 'text',
-              text: formatted,
-            },
-          ],
-        };
+        const params = validateInput(batchScoreSchema, args);
+        const text = await batchScoreRouted(getClient(), params);
+        return { content: [{ type: 'text', text }] };
       }
 
       case 'assess_pathogenicity': {
-        const params = validateInput(variantPredictionSchema, args) as VariantPredictionParams;
-        const result = await getClient().assessPathogenicity(params);
+        const params = validateInput(variantPredictionSchema, args);
+        const result = await assessPathogenicityRouted(getClient(), params);
         return {
           content: [{ type: 'text', text: JSON.stringify(result, null, 2) }],
         };
+      }
+
+      // AlphaGenome Atlas: precomputed scores, no model call.
+      case 'atlas_list_scorers': {
+        const result = await getClient().atlasListScorers();
+        return { content: [{ type: 'text', text: formatAtlasScorers(result) }] };
+      }
+
+      case 'atlas_lookup_variant': {
+        const params = validateInput(atlasLookupVariantSchema, args);
+        const result = await getClient().atlasLookupVariant(params);
+        return { content: [{ type: 'text', text: formatAtlasVariant(result) }] };
+      }
+
+      case 'atlas_lookup_variants': {
+        const params = validateInput(atlasLookupVariantsSchema, args);
+        const result = await getClient().atlasLookupVariants(params);
+        return { content: [{ type: 'text', text: formatAtlasBatch(result) }] };
+      }
+
+      case 'atlas_scan_region': {
+        const params = validateInput(atlasScanRegionSchema, args);
+        const result = await getClient().atlasScanRegion(params);
+        return { content: [{ type: 'text', text: formatAtlasRegion(result) }] };
       }
 
       case 'predict_tissue_specific': {
@@ -312,6 +334,13 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
 
       if (error instanceof ValidationError) {
         throw new McpError(ErrorCode.InvalidParams, `Validation error: ${error.message}`);
+      }
+
+      if (error instanceof AtlasNotAvailableError) {
+        throw new McpError(
+          ErrorCode.InvalidParams,
+          `Not in the AlphaGenome Atlas: ${error.message} Use source=auto or source=live to run live inference instead.`
+        );
       }
 
       // Generic error

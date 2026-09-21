@@ -20,7 +20,7 @@
   "scripts": {
     "build": "tsc",
     "dev": "tsc --watch",
-    "test": "npm run build && node --test build/tests/validation.test.js build/tests/formatting.test.js build/tests/routing.test.js build/tests/config.test.js",
+    "test": "npm run build && node --test build/tests/validation.test.js build/tests/formatting.test.js build/tests/routing.test.js build/tests/config.test.js build/tests/routed-tools.test.js",
     "lint": "eslint \"src/**/*.ts\"",
     "lint:fix": "eslint \"src/**/*.ts\" --fix",
     "format": "prettier --write \"src/**/*.ts\"",

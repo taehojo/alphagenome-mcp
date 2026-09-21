@@ -15,7 +15,13 @@ import {
   RateLimitError,
   ValidationError,
   NetworkError,
+  AtlasNotAvailableError,
   ApiError,
+  AtlasBatchResult,
+  AtlasRegionResult,
+  AtlasScorerList,
+  AtlasVariantQuery,
+  AtlasVariantResult,
 } from './types.js';
 
 // Re-export error classes for use in index.ts
@@ -46,7 +52,8 @@ function rethrow(error: unknown, label: string): never {
     error instanceof ApiKeyError ||
     error instanceof RateLimitError ||
     error instanceof ValidationError ||
-    error instanceof NetworkError
+    error instanceof NetworkError ||
+    error instanceof AtlasNotAvailableError
   ) {
     throw error;
   }
@@ -108,6 +115,8 @@ export class AlphaGenomeClient {
       case 'NetworkError':
       case 'TimeoutError':
         return new NetworkError(message);
+      case 'AtlasNotAvailableError':
+        return new AtlasNotAvailableError(message);
       default:
         return new ApiError(message, 500);
     }
@@ -514,6 +523,88 @@ export class AlphaGenomeClient {
       return await this.callPythonBridge('explain_variant_impact', params);
     } catch (error) {
       rethrow(error, 'Variant impact explanation');
+    }
+  }
+
+  // ==========================================================================
+  // AlphaGenome Atlas: precomputed scores, no model call
+  // ==========================================================================
+
+  private atlasScorers: AtlasScorerList | null = null;
+
+  /**
+   * Seconds since the epoch by which a long Atlas call should stop and return
+   * what it has. Leaves room before the bridge timeout so that a slow scan
+   * ends with a partial, labelled result instead of a killed process.
+   */
+  private static atlasDeadline(): number {
+    const budgetMs = Math.max(10000, getBridgeTimeoutMs() - 20000);
+    return (Date.now() + budgetMs) / 1000;
+  }
+
+  /**
+   * Scorers available in the Atlas. Fetched once per server session.
+   */
+  async atlasListScorers(): Promise<AtlasScorerList> {
+    if (this.atlasScorers) {
+      return this.atlasScorers;
+    }
+    try {
+      this.atlasScorers = await this.callPythonBridge<AtlasScorerList>('atlas_list_scorers', {});
+      return this.atlasScorers;
+    } catch (error) {
+      rethrow(error, 'Atlas scorer listing');
+    }
+  }
+
+  /**
+   * Precomputed scores of one single-nucleotide variant.
+   */
+  async atlasLookupVariant(
+    params: AtlasVariantQuery & { scorers?: string[]; top_n?: number }
+  ): Promise<AtlasVariantResult> {
+    try {
+      return await this.callPythonBridge<AtlasVariantResult>('atlas_lookup_variant', params);
+    } catch (error) {
+      rethrow(error, 'Atlas variant lookup');
+    }
+  }
+
+  /**
+   * Precomputed scores of many single-nucleotide variants, ranked.
+   */
+  async atlasLookupVariants(params: {
+    variants: AtlasVariantQuery[];
+    scorers?: string[];
+    top_n?: number;
+  }): Promise<AtlasBatchResult> {
+    try {
+      return await this.callPythonBridge<AtlasBatchResult>('atlas_lookup_variants', {
+        ...params,
+        deadline_epoch: AlphaGenomeClient.atlasDeadline(),
+      });
+    } catch (error) {
+      rethrow(error, 'Atlas batch lookup');
+    }
+  }
+
+  /**
+   * Every single-nucleotide substitution in a region, ranked.
+   */
+  async atlasScanRegion(params: {
+    chromosome: string;
+    start: number;
+    end: number;
+    scorers?: string[];
+    top_n?: number;
+  }): Promise<AtlasRegionResult> {
+    try {
+      return await this.callPythonBridge<AtlasRegionResult>('atlas_scan_region', {
+        ...params,
+        deadline_epoch: AlphaGenomeClient.atlasDeadline(),
+      });
+    } catch (error) {
+      rethrow(error, 'Atlas region scan');
     }
   }
 

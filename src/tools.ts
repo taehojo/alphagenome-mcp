@@ -6,6 +6,28 @@ import { Tool } from '@modelcontextprotocol/sdk/types.js';
  * MCP Tool Definitions for AlphaGenome Server
  */
 
+const SOURCE_PROPERTY = {
+  type: 'string',
+  enum: ['auto', 'atlas', 'live'],
+  description:
+    'Optional: where the answer comes from (default: auto). ' +
+    'auto = the precomputed AlphaGenome Atlas for single-nucleotide substitutions, live inference for everything else ' +
+    '(indels, multi-nucleotide variants); falls back to live only when the Atlas does not hold the variant. ' +
+    'atlas = Atlas only, errors instead of falling back. live = always run the model. ' +
+    'The result always states which source answered.',
+} as const;
+
+const SCORERS_PROPERTY = {
+  type: 'array',
+  items: { type: 'string' },
+  description:
+    'Optional: Atlas scorer names to use instead of the default set. Names come from atlas_list_scorers. Ignored by live inference.',
+} as const;
+
+const ATLAS_SCOPE_NOTE = `The Atlas holds precomputed AlphaGenome scores for single-nucleotide substitutions on the human reference genome (hg38, chr1-22, chrX, chrY). Indels, multi-nucleotide variants and custom sequences are not in it; use predict_variant_effect for those.`;
+
+const ATLAS_SIZE_NOTE = `The response is a summary, never a full score matrix: ranked rows only, capped at top_n (default 25, max 100) and at 40,000 characters.`;
+
 export const PREDICT_VARIANT_TOOL: Tool = {
   name: 'predict_variant_effect',
   description: `Predict the regulatory impact of a genetic variant using AlphaGenome AI.
@@ -18,6 +40,8 @@ Analyzes how a single nucleotide change affects:
 - Transcription factor binding
 - Chromatin accessibility
 - Histone modifications
+
+Source: single-nucleotide substitutions are answered from the precomputed AlphaGenome Atlas; indels and multi-nucleotide variants run live inference. Chosen automatically, overridable with \`source\`, and always stated in the result.
 
 Perfect for: variant interpretation, GWAS follow-up, clinical genomics research.
 
@@ -66,6 +90,8 @@ Example: "Analyze chr17:41234567A>T with AlphaGenome"`,
         type: 'string',
         description: 'Optional: tissue context (UBERON term, e.g., "UBERON:0001157" for brain)',
       },
+      source: SOURCE_PROPERTY,
+      scorers: SCORERS_PROPERTY,
     },
     required: ['chromosome', 'position', 'ref', 'alt'],
   },
@@ -84,6 +110,8 @@ Scoring metrics:
 - splice: Splicing alterations
 - regulatory_impact: Combined regulatory score
 - combined: All metrics weighted
+
+Source: each variant is routed on its own (Atlas for single-nucleotide substitutions, live inference otherwise). The result reports how many came from each source and how many fell back.
 
 Perfect for: GWAS post-analysis, VCF filtering, variant prioritization.
 
@@ -142,6 +170,8 @@ Example: "Score these 50 variants and show me the top 10 by regulatory impact"`,
         type: 'boolean',
         description: 'Include detailed clinical interpretation (default: false)',
       },
+      source: SOURCE_PROPERTY,
+      scorers: SCORERS_PROPERTY,
     },
     required: ['variants', 'scoring_metric'],
   },
@@ -190,6 +220,8 @@ Example: "Assess pathogenicity of chr19:44908684T>C"`,
         type: 'string',
         description: 'Optional: disease-relevant tissue (default: brain)',
       },
+      source: SOURCE_PROPERTY,
+      scorers: SCORERS_PROPERTY,
     },
     required: ['chromosome', 'position', 'ref', 'alt'],
   },
@@ -706,6 +738,140 @@ Example: "Explain the impact of chr9:12345678A>C in simple terms"`,
 /**
  * All available tools
  */
+// AlphaGenome Atlas Tools: precomputed scores, no model call
+
+const ATLAS_VARIANT_PROPERTIES = {
+  chromosome: {
+    type: 'string',
+    description: 'Chromosome (chr1-chr22, chrX, chrY)',
+    pattern: '^chr([1-9]|1[0-9]|2[0-2]|X|Y)$',
+  },
+  position: {
+    type: 'number',
+    description: 'Genomic position (1-based, hg38)',
+    minimum: 1,
+  },
+  ref: {
+    type: 'string',
+    description: 'Reference base (one of A, C, G, T). Must match hg38 at this position.',
+    pattern: '^[ATGCatgc]$',
+  },
+  alt: {
+    type: 'string',
+    description: 'Alternate base (one of A, C, G, T)',
+    pattern: '^[ATGCatgc]$',
+  },
+} as const;
+
+const TOP_N_PROPERTY = {
+  type: 'number',
+  description: 'Rows to return (default: 25, max: 100)',
+  minimum: 1,
+  maximum: 100,
+} as const;
+
+export const ATLAS_LIST_SCORERS_TOOL: Tool = {
+  name: 'atlas_list_scorers',
+  description: `List the variant scorers available in the AlphaGenome Atlas.
+
+Returns each scorer's name and what it measures. Use these names in the \`scorers\` parameter of the other Atlas tools and of predict_variant_effect. Cached for the session after the first call.
+
+${ATLAS_SCOPE_NOTE}`,
+  inputSchema: { type: 'object', properties: {} },
+};
+
+export const ATLAS_LOOKUP_VARIANT_TOOL: Tool = {
+  name: 'atlas_lookup_variant',
+  description: `Look up the precomputed AlphaGenome scores of one single-nucleotide variant. No model call, so it answers in seconds.
+
+Returns, per scorer, the strongest tracks for the variant ranked by absolute score, each with its gene, tissue or cell type, and assay. Default scorers, one per modality: AVI_SCORE, RNA_SEQ, CAGE, DNASE, CHIP_HISTONE, CHIP_TF, SPLICE_SITES.
+
+If the reference base does not match hg38, the Atlas says which base it expected and that message is returned as a validation error.
+
+${ATLAS_SCOPE_NOTE}
+
+${ATLAS_SIZE_NOTE}
+
+Example: "Look up chr19:44908684 T>C in the AlphaGenome Atlas"`,
+  inputSchema: {
+    type: 'object',
+    properties: {
+      ...ATLAS_VARIANT_PROPERTIES,
+      scorers: SCORERS_PROPERTY,
+      top_n: TOP_N_PROPERTY,
+    },
+    required: ['chromosome', 'position', 'ref', 'alt'],
+  },
+};
+
+export const ATLAS_LOOKUP_VARIANTS_TOOL: Tool = {
+  name: 'atlas_lookup_variants',
+  description: `Look up precomputed AlphaGenome scores for up to 500 single-nucleotide variants in one call and rank them by absolute effect.
+
+Returns one summary row per variant (its strongest score and where it was seen), ranked by the first scorer. Default scorer: AVI_SCORE (AlphaGenome Variant Impact), one number per variant. Variants the Atlas does not hold and variants it rejects (for example a reference base that does not match hg38) are listed separately with the reason; they do not fail the call.
+
+${ATLAS_SCOPE_NOTE}
+
+${ATLAS_SIZE_NOTE}
+
+Example: "Rank these 200 GWAS SNPs by their Atlas scores"`,
+  inputSchema: {
+    type: 'object',
+    properties: {
+      variants: {
+        type: 'array',
+        items: {
+          type: 'object',
+          properties: {
+            ...ATLAS_VARIANT_PROPERTIES,
+            variant_id: {
+              type: 'string',
+              description: 'Optional: variant identifier (e.g., rs number)',
+            },
+          },
+          required: ['chromosome', 'position', 'ref', 'alt'],
+        },
+        description: 'Single-nucleotide variants to look up (1-500)',
+        minItems: 1,
+        maxItems: 500,
+      },
+      scorers: SCORERS_PROPERTY,
+      top_n: TOP_N_PROPERTY,
+    },
+    required: ['variants'],
+  },
+};
+
+export const ATLAS_SCAN_REGION_TOOL: Tool = {
+  name: 'atlas_scan_region',
+  description: `Scan a genomic region in the AlphaGenome Atlas: every possible single-nucleotide substitution in the interval, ranked by absolute effect.
+
+Answers "which positions in this region matter most?" without running the model. Region width is at most 50,000 bp; wider regions should be scanned in pieces. Default scorer: AVI_SCORE (about 7 seconds for 2,000 bp).
+
+Cost: one API request per 32 bp, under a requests-per-minute quota. Multi-track scorers are much slower (2,000 bp: DNASE 17 s, CHIP_TF 86 s). Scorers with one row per gene or junction (RNA_SEQ, SPLICE_JUNCTIONS, ...) cannot be used for a scan: scan with AVI_SCORE, then use atlas_lookup_variant on the top variants. If the quota or the time limit stops a scan early, the result says "Incomplete" and names the part that was scanned.
+
+${ATLAS_SCOPE_NOTE}
+
+${ATLAS_SIZE_NOTE}
+
+Example: "Scan chr17:49209289-49211289 and show the 25 substitutions with the largest predicted effect"`,
+  inputSchema: {
+    type: 'object',
+    properties: {
+      chromosome: ATLAS_VARIANT_PROPERTIES.chromosome,
+      start: { type: 'number', description: 'Start position (1-based, hg38)', minimum: 1 },
+      end: {
+        type: 'number',
+        description: 'End position (greater than start, at most start + 50,000)',
+        minimum: 1,
+      },
+      scorers: SCORERS_PROPERTY,
+      top_n: TOP_N_PROPERTY,
+    },
+    required: ['chromosome', 'start', 'end'],
+  },
+};
+
 export const ALL_TOOLS: Tool[] = [
   PREDICT_VARIANT_TOOL,
   BATCH_SCORE_TOOL,
@@ -727,4 +893,8 @@ export const ALL_TOOLS: Tool[] = [
   BATCH_MODALITY_SCREEN_TOOL,
   GENERATE_VARIANT_REPORT_TOOL,
   EXPLAIN_VARIANT_IMPACT_TOOL,
+  ATLAS_LIST_SCORERS_TOOL,
+  ATLAS_LOOKUP_VARIANT_TOOL,
+  ATLAS_LOOKUP_VARIANTS_TOOL,
+  ATLAS_SCAN_REGION_TOOL,
 ];
