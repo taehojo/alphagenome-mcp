@@ -79,12 +79,30 @@ jobs:
       - name: Tool reference is up to date
         run: npm run docs:api:check
 
-      - name: Publish to npm
-        run: npm publish --provenance --access public
+      # A trusted publisher created after 2026-09-03 allows `npm stage publish`
+      # only, unless direct publishing is switched on in its settings. So:
+      # publish directly when that is allowed; otherwise stage the version,
+      # and a maintainer approves it with 2FA (`npm stage approve <stage-id>`).
+      - name: Publish to npm, or stage for approval
         env:
           NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
-
-      - name: Summary
         run: |
           VERSION=$(node -p "require('./package.json').version")
-          echo "Published @jolab/alphagenome-mcp@${VERSION}: https://www.npmjs.com/package/@jolab/alphagenome-mcp/v/${VERSION}" >> "$GITHUB_STEP_SUMMARY"
+          set +e
+          npm publish --provenance --access public 2>&1 | tee publish.log
+          status=${PIPESTATUS[0]}
+          set -e
+          if [ "$status" -eq 0 ]; then
+            echo "Published @jolab/alphagenome-mcp@${VERSION}: https://www.npmjs.com/package/@jolab/alphagenome-mcp/v/${VERSION}" >> "$GITHUB_STEP_SUMMARY"
+            exit 0
+          fi
+          if ! grep -qE "E403|EOTP|OIDC permission denied" publish.log; then
+            echo "npm publish failed for a reason staging would not fix"; exit "$status"
+          fi
+          echo "Direct publishing is not allowed for this publisher; staging instead."
+          npm stage publish --provenance --access public 2>&1 | tee stage.log
+          {
+            echo "Staged @jolab/alphagenome-mcp@${VERSION}. It is NOT on npm yet."
+            echo "A maintainer approves it with 2FA: \`npm stage list @jolab/alphagenome-mcp\`, then \`npm stage approve <stage-id>\`."
+            echo '```'; grep -iE "stage|id" stage.log | tail -5; echo '```'
+          } >> "$GITHUB_STEP_SUMMARY"
