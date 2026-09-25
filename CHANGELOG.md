@@ -14,6 +14,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - DEPLOYMENT.md and CONTRIBUTING.md no longer describe the server as a proof of concept on mock data awaiting API access. DEPLOYMENT.md describes the current release process (`publish.yml`, trusted publishing, staged versions) and a real API key; CONTRIBUTING.md has the current project structure and tests, and the no-classification policy in place of the mock-data policy
 - The AlphaGenome citation in the README is the published paper (Nature 649, 1206-1218, 2026; doi 10.1038/s41586-025-10014-0), as cited by the `alphagenome` 0.9.0 package, instead of the 2025 bioRxiv preprint
 - The API key link in the README and in the missing-key error is https://deepmind.google.com/science/alphagenome, the "Get API key" link of the `alphagenome` package README
+- CLAUDE.md: commits and pull requests carry no Claude attribution lines, and the commit author is Taeho Jo
 
 ## [0.3.0] - 2026-09-21
 
