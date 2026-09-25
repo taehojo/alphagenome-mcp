@@ -91,7 +91,7 @@ function getClient(): AlphaGenomeClient {
         // take the whole server down the first time any tool is called.
         throw new McpError(
           ErrorCode.InvalidRequest,
-          'AlphaGenome API key is missing. Get a key from https://alphagenome.google/api ' +
+          'AlphaGenome API key is missing. Get a key from https://deepmind.google.com/science/alphagenome ' +
             'and set ALPHAGENOME_API_KEY in the "env" block of your MCP client configuration ' +
             '(preferred), or pass --api-key on the command line.'
         );

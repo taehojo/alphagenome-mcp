@@ -1,272 +1,96 @@
 # AlphaGenome MCP Server - Deployment Guide
 
-## ✅ Current Status
+How a version of `@jolab/alphagenome-mcp` reaches npm, and how to check it afterwards.
 
-**Phases 1-11: COMPLETE** ✨
+The server calls the real AlphaGenome API through the AlphaGenome Python SDK (`alphagenome` 0.9.0 or newer). Nothing is mocked: every tool needs a valid API key, which you can get at https://deepmind.google.com/science/alphagenome (free for non-commercial use, subject to the [terms of use](https://deepmind.google.com/science/alphagenome/terms)).
 
-The AlphaGenome MCP Server is fully developed, tested, and ready for deployment.
+## Before a release
 
-### What's Been Built
+1. Update `version` in `package.json` and move the `[Unreleased]` entries of `CHANGELOG.md` under the new version.
+2. Run the checks that the publish workflow runs:
 
-- ✅ Complete TypeScript MCP server implementation
-- ✅ Three powerful genomics analysis tools
-- ✅ Mock AlphaGenome API client (awaiting real API)
-- ✅ Comprehensive input validation with Zod
-- ✅ Beautiful Markdown output formatting
-- ✅ Full documentation (README, API docs, Contributing guide)
-- ✅ GitHub Actions CI/CD workflows
-- ✅ ESLint + Prettier configuration
-- ✅ All code quality checks passing
+   ```bash
+   npm ci
+   npm run lint
+   npm run typecheck
+   npm test              # builds, then runs the TypeScript unit tests (no API key needed)
+   npm run docs:api:check
+   npm run test:python   # Python summarizer tests (numpy and pandas only)
+   ```
 
----
+3. Merge to `main`.
 
-## 📦 Phase 12: Manual Deployment Steps
+## Publishing
 
-Since GitHub CLI is not available on this system, please complete these steps manually:
+Publishing is done by `.github/workflows/publish.yml`. It runs when a GitHub release is **published**, so creating a release is the publish step: do not create one for any other reason.
 
-### Step 1: Create GitHub Repository
+1. Create a release whose tag is `v` plus the version in `package.json` (for example `v0.3.0`). The workflow fails if the two differ, or if that version is already on npm.
+2. The workflow checks out the tag, runs lint, typecheck, build, unit tests and the tool reference check, then publishes with provenance.
+3. A publish that failed can be retried for the same tag without recreating the release:
 
-1. Go to https://github.com/new
-2. Repository settings:
-   - **Owner**: taehojo
-   - **Repository name**: `alphagenome-mcp`
-   - **Description**: `MCP server for AI-powered genomic variant analysis (proof-of-concept)`
-   - **Visibility**: Public
-   - **Initialize**: Do NOT add README, .gitignore, or license (we already have them)
-3. Click "Create repository"
+   ```bash
+   gh workflow run publish.yml -f tag=v0.3.0
+   ```
 
-### Step 2: Push Code to GitHub
+### Authentication
 
-```bash
-cd /N/project/AiLab/alphagenome-mcp
+The workflow uses npm trusted publishing (OIDC). Configure it once on npmjs.com: package Settings > Trusted Publisher > GitHub Actions, with this repository and the workflow filename `publish.yml`. The `NPM_TOKEN` secret is only a fallback; a token needs "bypass 2FA" to publish from CI.
 
-# Add remote
-git remote add origin https://github.com/taehojo/alphagenome-mcp.git
-
-# Rename branch to main (if needed)
-git branch -M main
-
-# Push code
-git push -u origin main
-```
-
-### Step 3: Configure npm Authentication
-
-1. Go to https://www.npmjs.com/
-2. Log in as `jolab`
-3. Click your profile → "Access Tokens"
-4. Click "Generate New Token" → "Classic Token"
-5. Name: `alphagenome-mcp-github-actions`
-6. Type: **Automation** (for CI/CD)
-7. Copy the token (it won't be shown again!)
-
-### Step 4: Add npm Token to GitHub Secrets
-
-1. Go to https://github.com/taehojo/alphagenome-mcp/settings/secrets/actions
-2. Click "New repository secret"
-3. Name: `NPM_TOKEN`
-4. Value: Paste the npm token from Step 3
-5. Click "Add secret"
-
-### Step 5: Create GitHub Release
-
-1. Go to https://github.com/taehojo/alphagenome-mcp/releases/new
-2. Fill in:
-   - **Tag version**: `v0.1.0`
-   - **Release title**: `v0.1.0 - Initial Release (Proof of Concept)`
-   - **Description**:
-
-```markdown
-# 🧬 AlphaGenome MCP Server v0.1.0
-
-**Initial proof-of-concept release**
-
-⚠️ **IMPORTANT**: This release uses **mock data** for demonstration. The actual AlphaGenome API from Google DeepMind is not yet publicly available.
-
-## ✨ Features
-
-- 🧬 **predict_variant_effect**: Analyze regulatory impact of genetic variants
-- 🔍 **atlas_scan_region**: Rank every single-nucleotide substitution in a region from the precomputed AlphaGenome Atlas
-- 📊 **batch_score_variants**: Prioritize multiple variants by regulatory impact
-
-## 🚀 Installation
+If the trusted publisher allows staged publishing only, the workflow stages the version instead of publishing it. The version is then **not on npm yet**: a maintainer approves it with 2FA:
 
 ```bash
-npx @jolab/alphagenome-mcp
+npm stage list @jolab/alphagenome-mcp
+npm stage approve <stage-id>
 ```
 
-Or add to Claude Desktop config:
+The job summary says which of the two happened.
 
-```json
-{
-  "mcpServers": {
-    "alphagenome": {
-      "command": "npx",
-      "args": ["-y", "@jolab/alphagenome-mcp"],
-      "env": {
-        "ALPHAGENOME_API_KEY": "mock"
-      }
-    }
-  }
-}
-```
+## After publishing
 
-## 📚 Documentation
+1. Check https://www.npmjs.com/package/@jolab/alphagenome-mcp for the new version (npm can take a few minutes).
+2. Install it in a client with a real key:
 
-- [README](https://github.com/taehojo/alphagenome-mcp#readme)
-- [API Documentation](https://github.com/taehojo/alphagenome-mcp/blob/main/docs/API.md)
-- [Contributing Guide](https://github.com/taehojo/alphagenome-mcp/blob/main/CONTRIBUTING.md)
+   ```bash
+   claude mcp add alphagenome --env ALPHAGENOME_API_KEY=YOUR_API_KEY -- npx -y @jolab/alphagenome-mcp@latest
+   ```
 
-## 🔮 Future
+   or, for Claude Desktop, in `claude_desktop_config.json`:
 
-This architecture is ready for real AlphaGenome API integration when it becomes publicly available.
+   ```json
+   {
+     "mcpServers": {
+       "alphagenome": {
+         "command": "npx",
+         "args": ["-y", "@jolab/alphagenome-mcp@latest"],
+         "env": {
+           "ALPHAGENOME_API_KEY": "your-api-key-here"
+         }
+       }
+     }
+   }
+   ```
 
-## 📝 Changelog
+3. The machine needs Python 3.10+ with `alphagenome` and `numpy` installed (see [Python environment](README.md#python-environment)). Set `ALPHAGENOME_PYTHON` if the interpreter is not `python3` or `python` on the PATH.
+4. Try a single-nucleotide variant (answered from the Atlas) and an indel (answered by live inference), and check the `source` line of each result:
 
-See [CHANGELOG.md](https://github.com/taehojo/alphagenome-mcp/blob/main/CHANGELOG.md)
+   ```
+   "Use alphagenome to score chr19:44908822 C>T"
+   "Use alphagenome to score the deletion chr17:49210289 CCC>C"
+   ```
 
----
+## Troubleshooting
 
-**Made with ❤️ for the genomics research community**
-```
+### The publish workflow fails
 
-3. Click "Publish release"
+- **Tag and version differ**: the release tag must be `v` + `package.json` version.
+- **Version already on npm**: bump the version; npm does not accept the same version twice.
+- **`E403`, `EOTP` or `OIDC permission denied`**: the workflow falls back to staging; approve the staged version as above. Otherwise check the trusted publisher settings.
 
-### Step 6: Verify Automatic npm Publish
+### The client cannot use the server
 
-After creating the release, GitHub Actions will automatically:
+See [Troubleshooting](README.md#troubleshooting) in the README for the error messages the server returns (missing interpreter, missing `alphagenome` package, missing or rejected API key, quota, timeout).
 
-1. Run all tests (lint, typecheck, build)
-2. Publish to npm at https://www.npmjs.com/package/@jolab/alphagenome-mcp
-
-Monitor progress at: https://github.com/taehojo/alphagenome-mcp/actions
-
-### Step 7: Verify npm Package
-
-After a few minutes, check:
-
-1. Visit https://www.npmjs.com/package/@jolab/alphagenome-mcp
-2. Verify version 0.1.0 is published
-3. Test installation:
-
-```bash
-npx @jolab/alphagenome-mcp --version
-```
-
----
-
-## 🧪 Testing with Claude Desktop
-
-### Add to Configuration
-
-Edit `~/Library/Application Support/Claude/claude_desktop_config.json` (macOS) or equivalent:
-
-```json
-{
-  "mcpServers": {
-    "alphagenome": {
-      "command": "npx",
-      "args": ["-y", "@jolab/alphagenome-mcp"],
-      "env": {
-        "ALPHAGENOME_API_KEY": "mock"
-      }
-    }
-  }
-}
-```
-
-### Restart Claude Desktop
-
-Completely quit and restart Claude Desktop.
-
-### Test Commands
-
-Try these in Claude:
-
-```
-"Use AlphaGenome to analyze the variant chr17:41234567A>T"
-
-"Find regulatory elements in chr11:5225464-5227071"
-
-"Score these variants:
-- chr7:117199563C>T
-- chr13:32910000G>A
-Show me the top 2"
-```
-
----
-
-## 📊 Project Statistics
-
-```bash
-Lines of Code (TypeScript):  ~1,500
-Files Created:               20
-Dependencies:                4 prod, 7 dev
-Build Time:                  ~3 seconds
-Package Size:                ~50 KB
-```
-
----
-
-## 🎯 Success Criteria (All Met ✅)
-
-- [x] TypeScript compiles without errors
-- [x] ESLint passes with no warnings
-- [x] Prettier formatting applied
-- [x] All 3 MCP tools defined and working
-- [x] Mock API client functional
-- [x] Comprehensive documentation written
-- [x] GitHub Actions workflows configured
-- [x] Code committed to git
-- [x] Ready for GitHub repository creation
-- [x] Ready for npm publication
-
----
-
-## 🐛 Troubleshooting
-
-### GitHub Actions Fails on Publish
-
-**Error**: "npm ERR! need auth"
-- **Solution**: Verify `NPM_TOKEN` secret is set correctly in GitHub
-
-**Error**: "Package name already exists"
-- **Solution**: Package `@jolab/alphagenome-mcp` should be available
-- If not, update `package.json` name to `@jolab/alphagenome-mcp-v2` or similar
-
-### npm Package Not Found After Publishing
-
-- **Wait**: npm can take 5-10 minutes to propagate
-- **Check**: https://www.npmjs.com/package/@jolab/alphagenome-mcp
-- **Verify**: Check GitHub Actions logs for publish success
-
-### Claude Desktop Can't Find Server
-
-- **Check config**: Ensure `claude_desktop_config.json` is correct
-- **Restart**: Fully quit and restart Claude Desktop
-- **Logs**: Check Claude Desktop logs for MCP server errors
-- **Test locally**: `ALPHAGENOME_API_KEY=mock node build/index.js`
-
----
-
-## 📧 Support
+## Support
 
 - **GitHub Issues**: https://github.com/taehojo/alphagenome-mcp/issues
 - **Email**: taehjo@gmail.com
-
----
-
-## 🎉 Congratulations!
-
-You've successfully built a complete, production-ready MCP server for genomic variant analysis!
-
-**Next Steps**:
-1. Complete the manual deployment steps above
-2. Share with the genomics community
-3. Await official AlphaGenome API access
-4. Integrate real API when available
-5. Publish research findings
-
----
-
-**🧬 Built with Claude Code | @jolab/alphagenome-mcp**
