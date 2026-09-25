@@ -188,6 +188,7 @@ The Python bridge (`scripts/alphagenome_bridge.py`, with `scripts/atlas_actions.
 ## Important Notes
 
 - Never commit API keys
+- Do not add Co-Authored-By or any other Claude attribution lines to commits or pull requests. The commit author is Taeho Jo <taehjo@gmail.com>
 - Requires valid AlphaGenome API key for production use
 - Maintain TypeScript strict mode
 - Follow existing error handling patterns

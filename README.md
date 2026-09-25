@@ -44,7 +44,7 @@ The server chooses between the two automatically, and **every result states its 
 
 **Get started in 3 minutes:**
 
-0. **Get an API key** at https://alphagenome.google/api (free for non-commercial use). You need Node.js 18+ and Python 3.10+.
+0. **Get an API key** at https://deepmind.google.com/science/alphagenome (free for non-commercial use). You need Node.js 18+ and Python 3.10+.
 
 1. **Install dependencies**
    ```bash
@@ -270,7 +270,7 @@ Rankings over several scorers use the largest absolute quantile, because quantil
 - Node.js ≥18.0.0
 - Python ≥3.10 (required by the `alphagenome` package)
 - `alphagenome` ≥0.9.0 for the Atlas tools
-- AlphaGenome API key: https://alphagenome.google/api (free for non-commercial use)
+- AlphaGenome API key: https://deepmind.google.com/science/alphagenome (free for non-commercial use)
 - Python packages: `alphagenome`, `numpy`
 
 ### Environment variables
@@ -452,7 +452,7 @@ The server reports problems as tool errors and keeps running. The message tells 
 |---|---|
 | `No Python interpreter found (tried: python3, python)` | No Python on the PATH of the MCP client. Set `ALPHAGENOME_PYTHON` to the full path of an interpreter (see [Python environment](#python-environment)). Common on Windows |
 | `AlphaGenome package not installed for this interpreter (...)` | The interpreter in the message has no `alphagenome`. Install it for that interpreter, or point `ALPHAGENOME_PYTHON` at the one that has it. `pip install` fails on Python older than 3.10 |
-| `AlphaGenome API key is missing` | Put `ALPHAGENOME_API_KEY` in the `env` block of the client configuration. Get a key at https://alphagenome.google/api |
+| `AlphaGenome API key is missing` | Put `ALPHAGENOME_API_KEY` in the `env` block of the client configuration. Get a key at https://deepmind.google.com/science/alphagenome |
 | `API key error: ...` | The key was rejected. Check for a truncated or expired key |
 | `reference base does not match the expected reference base: X` | The `ref` allele is not what hg38 has at that position. Check the genome build (hg38, not hg19), that the position is 1-based, and the strand. The message names the base the reference has |
 | `request quota ... is exhausted` / `Rate limit exceeded` | The API's per-minute quota. Wait a minute; scan a smaller region |
@@ -655,11 +655,15 @@ If you use this software in your research, please cite:
 
 AlphaGenome model:
 ```bibtex
-@article{avsec2025alphagenome,
-  title = {AlphaGenome: advancing regulatory variant effect prediction with a unified DNA sequence model},
+@article{avsec2026alphagenome,
+  title = {Advancing regulatory variant effect prediction with {AlphaGenome}},
   author = {Avsec, Žiga and Latysheva, Natasha and Cheng, Jun and others},
-  journal = {bioRxiv},
-  year = {2025}
+  journal = {Nature},
+  volume = {649},
+  number = {8099},
+  pages = {1206--1218},
+  year = {2026},
+  doi = {10.1038/s41586-025-10014-0}
 }
 ```
 
